@@ -1193,6 +1193,7 @@ function noteBuildPianoHTML(activeNotes, labeled) {
 }
 
 function notePlayAll() {
+  getAudioCtx(); // unlock audio on iOS inside this tap handler
   const active = noteActiveKeys();
   active.forEach((note, i) => {
     setTimeout(() => {
@@ -1208,6 +1209,7 @@ function notePlayAll() {
 }
 
 function noteReady() {
+  getAudioCtx(); // unlock audio on iOS inside this tap handler
   const active = noteActiveKeys();
   const target = active[Math.floor(Math.random() * active.length)];
   noteState.target = target;
