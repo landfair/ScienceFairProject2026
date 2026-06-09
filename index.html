@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>The Rule of Seven</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f8f9fa;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  /* ── Layout ── */
+  #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  header {
+    background: #fff;
+    border-bottom: 1px solid #e9ecef;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.5px; }
+  header span { font-size: 0.85rem; color: #6c757d; }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; width: 100%; max-width: 760px; animation: fadeIn 0.3s ease; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Menu ── */
+  .menu-title { font-size: 2rem; font-weight: 800; text-align: center; line-height: 1.2; }
+  .menu-sub { color: #6c757d; font-size: 0.95rem; text-align: center; max-width: 420px; }
+  .game-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
+  .game-card {
+    background: #fff;
+    border: 1.5px solid #e9ecef;
+    border-radius: 12px;
+    padding: 24px 20px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    text-align: left;
+  }
+  .game-card:hover { border-color: #4361ee; transform: translateY(-2px); box-shadow: 0 4px 20px rgba(67,97,238,0.12); }
+  .game-card .card-icon { font-size: 2rem; margin-bottom: 10px; }
+  .game-card .card-name { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+  .game-card .card-desc { font-size: 0.82rem; color: #6c757d; line-height: 1.5; }
+  .scores-card {
+    border-style: dashed !important;
+    background: #f8f9ff !important;
+  }
+  .scores-card .card-name { color: #4361ee; }
+  .scores-card .card-icon { opacity: 0.85; }
+
+  /* ── Buttons ── */
+  .btn {
+    padding: 12px 28px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: #4361ee; color: #fff; }
+  .btn-primary:hover { background: #3a56d4; }
+  .btn-secondary { background: #e9ecef; color: #1a1a2e; }
+  .btn-secondary:hover { background: #dee2e6; }
+  .btn-danger { background: #e63946; color: #fff; }
+  .btn-danger:hover { background: #c1121f; }
+
+  /* ── Game UI ── */
+  .game-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+  .game-header .game-name { font-weight: 700; font-size: 1rem; }
+  .level-badge {
+    background: #4361ee;
+    color: #fff;
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .instruction {
+    font-size: 1rem;
+    color: #495057;
+    text-align: center;
+    min-height: 1.5em;
+  }
+  .timer-bar-wrap { width: 100%; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; }
+  .timer-bar { height: 100%; background: #4361ee; border-radius: 3px; transition: width 0.1s linear; }
+
+  /* ── Stimulus area ── */
+  .stimulus-area {
+    background: #fff;
+    border: 1.5px solid #e9ecef;
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    align-items: center;
+    min-height: 140px;
+    width: 100%;
+    overflow: auto;
+  }
+  .stimulus-area.hidden-content { filter: blur(0px); }
+
+  /* ── SVG icon cards ── */
+  .icon-card {
+    width: 72px; height: 72px;
+    background: #f1f3f9;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    border: 2.5px solid transparent;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  }
+  .icon-card svg { width: 40px; height: 40px; }
+  .icon-card.selectable:hover { border-color: #4361ee; background: #eef0fd; transform: scale(1.05); }
+  .icon-card.correct { border-color: #2dc653; background: #eafff1; }
+  .icon-card.wrong { border-color: #e63946; background: #fff0f1; }
+
+  /* ── Choice grid ── */
+  .choice-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+
+  /* ── Note Recognition / Piano ── */
+  .piano-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+  }
+  .piano {
+    position: relative;
+    display: flex;
+    user-select: none;
+  }
+  .piano-key {
+    position: relative;
+    border-radius: 0 0 6px 6px;
+    cursor: pointer;
+    transition: background 0.08s, transform 0.08s;
+  }
+  .piano-key.white {
+    width: 48px;
+    height: 140px;
+    background: #fff;
+    border: 1.5px solid #ccc;
+    border-top: 3px solid #bbb;
+    z-index: 1;
+    margin: 0 1px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.12);
+  }
+  .piano-key.black {
+    width: 30px;
+    height: 88px;
+    background: #1a1a2e;
+    border: 1.5px solid #000;
+    border-top: 2px solid #333;
+    z-index: 2;
+    margin-left: -15px;
+    margin-right: -15px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+  }
+  .piano-key.white:hover  { background: #eef0fd; }
+  .piano-key.black:hover  { background: #2a2a4e; }
+  .piano-key.white:active, .piano-key.white.pressed { background: #d0d8ff; transform: translateY(2px); }
+  .piano-key.black:active, .piano-key.black.pressed { background: #3a3a6e; transform: translateY(2px); }
+  .piano-key.correct-flash { background: #2dc653 !important; }
+  .piano-key.wrong-flash   { background: #e63946 !important; }
+  .key-label {
+    position: absolute;
+    bottom: 6px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .piano-key.white .key-label { color: #6c757d; }
+  .piano-key.black .key-label { color: #adb5bd; }
+  .piano-key.disabled { pointer-events: none; opacity: 0.7; }
+  .piano-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  /* ── Digit Span ── */
+  .digit-display {
+    font-size: 4rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    min-height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .digit-input-area { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+  .digit-input {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 12px 20px;
+    width: 100%;
+    max-width: 340px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .digit-input:focus { border-color: #4361ee; }
+  .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 260px; }
+  .numpad-btn {
+    padding: 14px;
+    border-radius: 8px;
+    border: 1.5px solid #e9ecef;
+    background: #fff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .numpad-btn:hover { background: #eef0fd; border-color: #4361ee; }
+
+  /* ── Spatial Grid ── */
+  .spatial-grid {
+    display: grid;
+    gap: 8px;
+  }
+  .grid-cell {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .grid-cell.lit { background: #4361ee; border-color: #4361ee; }
+  .grid-cell.selectable-cell:hover { border-color: #4361ee; transform: scale(1.05); }
+  .grid-cell.correct { background: #2dc653; border-color: #2dc653; }
+  .grid-cell.wrong { background: #e63946; border-color: #e63946; }
+  .grid-cell.missed { background: #ffb703; border-color: #ffb703; }
+
+  /* ── Feedback overlay ── */
+  .feedback {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 10px 24px;
+    border-radius: 8px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .feedback.correct { background: #eafff1; color: #2dc653; }
+  .feedback.wrong { background: #fff0f1; color: #e63946; }
+  .feedback.neutral { background: #f1f3f9; color: #495057; }
+
+  /* ── Game Over ── */
+  .gameover-box {
+    background: #fff;
+    border: 1.5px solid #e9ecef;
+    border-radius: 16px;
+    padding: 36px 32px;
+    text-align: center;
+    width: 100%;
+  }
+  .gameover-box h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 8px; }
+  .gameover-box .score-big { font-size: 3.5rem; font-weight: 900; color: #4361ee; line-height: 1; margin: 16px 0 4px; }
+  .gameover-box .score-label { font-size: 0.85rem; color: #6c757d; margin-bottom: 20px; }
+  .gameover-box .compare { font-size: 0.9rem; color: #495057; margin-bottom: 24px; line-height: 1.6; }
+
+  /* ── Scoreboard ── */
+  .score-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .score-table th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #e9ecef; color: #6c757d; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .score-table td { padding: 8px 12px; border-bottom: 1px solid #f1f3f9; }
+  .score-table tr:last-child td { border-bottom: none; }
+  .score-table .highlight { background: #eef0fd; font-weight: 700; }
+  .no-scores { text-align: center; color: #6c757d; padding: 32px; font-size: 0.9rem; }
+
+  /* ── Intro card ── */
+  .intro-card {
+    background: #fff;
+    border: 1.5px solid #e9ecef;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    width: 100%;
+  }
+  .intro-card h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 10px; }
+  .intro-card p { color: #495057; font-size: 0.9rem; line-height: 1.6; margin-bottom: 20px; }
+  .intro-card .rules { text-align: left; background: #f8f9fa; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; font-size: 0.88rem; color: #495057; line-height: 1.8; }
+
+  /* footer */
+  footer { text-align: center; padding: 16px; font-size: 0.78rem; color: #adb5bd; }
+
+  /* ── iPad (768px – 1024px) ── */
+  @media (min-width: 768px) {
+    header { padding: 20px 48px; }
+    header h1 { font-size: 1.4rem; }
+    main { padding: 48px 40px; }
+    .screen { max-width: 820px; }
+    .menu-title { font-size: 2.4rem; }
+    .menu-sub { font-size: 1rem; max-width: 520px; }
+    .game-cards { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .game-card { padding: 28px 24px; }
+    .game-card .card-icon { font-size: 2.4rem; }
+    .game-card .card-name { font-size: 1.1rem; }
+    .game-card .card-desc { font-size: 0.88rem; }
+    .scores-btn { font-size: 0.95rem; }
+    .btn { padding: 14px 32px; font-size: 1rem; }
+    .game-header .game-name { font-size: 1.1rem; }
+    .level-badge { font-size: 0.9rem; padding: 6px 18px; }
+    .instruction { font-size: 1.1rem; }
+    .timer-bar-wrap { height: 8px; }
+    .stimulus-area { padding: 40px; min-height: 180px; gap: 24px; }
+    .icon-card { width: 90px; height: 90px; }
+    .icon-card svg { width: 52px; height: 52px; }
+    .digit-display { font-size: 5rem; min-height: 110px; }
+    .digit-input { font-size: 2.2rem; max-width: 420px; padding: 14px 24px; }
+    .numpad { max-width: 320px; gap: 10px; }
+    .numpad-btn { padding: 18px; font-size: 1.3rem; }
+    .grid-cell { width: 70px; height: 70px; border-radius: 10px; }
+    .spatial-grid { gap: 10px; }
+    .feedback { font-size: 1.2rem; padding: 12px 28px; min-height: 52px; }
+    .gameover-box { padding: 48px 40px; }
+    .gameover-box h2 { font-size: 1.9rem; }
+    .gameover-box .score-big { font-size: 5rem; }
+    .gameover-box .compare { font-size: 1rem; }
+    .intro-card { padding: 40px; }
+    .intro-card h2 { font-size: 1.6rem; }
+    .intro-card p { font-size: 1rem; }
+    .intro-card .rules { font-size: 0.95rem; line-height: 2; }
+    .score-table { font-size: 1rem; }
+    .score-table th { font-size: 0.85rem; padding: 10px 16px; }
+    .score-table td { padding: 10px 16px; }
+    .piano-key.white { width: 58px; height: 170px; }
+    .piano-key.black { width: 36px; height: 108px; }
+  }
+
+  /* ── iPad landscape / large tablet ── */
+  @media (min-width: 1024px) {
+    .screen { max-width: 900px; }
+    .game-cards { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  /* ── Phone (< 500px) ── */
+  @media (max-width: 499px) {
+    .game-cards { grid-template-columns: 1fr; }
+    .menu-title { font-size: 1.5rem; }
+    .digit-display { font-size: 2.8rem; }
+    .grid-cell { width: 44px; height: 44px; }
+    .icon-card { width: 60px; height: 60px; }
+    .numpad { max-width: 220px; }
+    .numpad-btn { padding: 12px; font-size: 1rem; }
+  }
+
+  /* ── Touch: remove hover effects, ensure min tap size ── */
+  @media (hover: none) {
+    .game-card:hover { transform: none; box-shadow: none; border-color: #e9ecef; }
+    .game-card:active { border-color: #4361ee; background: #f8f9ff; }
+    .btn:hover { background: unset; }
+    .btn-primary:active { background: #3a56d4; }
+    .btn-secondary:active { background: #dee2e6; }
+    .piano-key.white:hover { background: #fff; }
+    .piano-key.black:hover { background: #1a1a2e; }
+    .piano-key.white:active { background: #d0d8ff; }
+    .piano-key.black:active { background: #3a3a6e; }
+    .icon-card { min-width: 64px; min-height: 64px; }
+    .numpad-btn { min-height: 52px; }
+    .grid-cell { min-width: 48px; min-height: 48px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>The Rule of Seven</h1>
+    <span>±2 Memory Games</span>
+  </header>
+
+  <main>
+    <!-- ══ MENU ══ -->
+    <div id="screen-menu" class="screen active">
+      <div class="menu-title" style="white-space:nowrap;">The Rule of Seven <em>(plus or minus two)</em></div>
+      <p class="menu-sub">Five games exploring the limits of human working memory.</p>
+      <div class="game-cards">
+        <div class="game-card" onclick="startGame('note')">
+          <div class="card-icon">🎵</div>
+          <div class="card-name">Note Recognition</div>
+          <div class="card-desc">Hear a piano note and identify it by ear. Starts with C & D, adds one key per level.</div>
+        </div>
+        <div class="game-card" onclick="startGame('digit')">
+          <div class="card-icon">🔢</div>
+          <div class="card-name">Digit Span</div>
+          <div class="card-desc">Remember a sequence of digits and type it back. Grows one digit at a time.</div>
+        </div>
+        <div class="game-card" onclick="startGame('spatial')">
+          <div class="card-icon">⬛</div>
+          <div class="card-name">Spatial Grid</div>
+          <div class="card-desc">Study dot locations on a 10×10 grid, then click where they were.</div>
+        </div>
+        <div class="game-card" onclick="startGame('rowan')">
+          <div class="card-icon">🔷</div>
+          <div class="card-name">Shape Recall</div>
+          <div class="card-desc">Study a set of icons, then find the one that was in the set.</div>
+        </div>
+        <div class="game-card" onclick="startGame('plusone')">
+          <div class="card-icon">➕</div>
+          <div class="card-name">Digit Span +1</div>
+          <div class="card-desc">See a digit sequence, then type each digit plus one. 9 wraps to 0.</div>
+        </div>
+        <div class="game-card scores-card" onclick="showScoreboard()">
+          <div class="card-icon">📊</div>
+          <div class="card-name">All Scores</div>
+          <div class="card-desc">Average scores per game compared to your most recent play.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ INTRO ══ -->
+    <div id="screen-intro" class="screen">
+      <div class="intro-card">
+        <h2 id="intro-title"></h2>
+        <p id="intro-desc"></p>
+        <div class="rules" id="intro-rules"></div>
+        <div style="display:flex;gap:12px;justify-content:center;">
+          <button class="btn btn-secondary" onclick="goMenu()">Back</button>
+          <button class="btn btn-primary" onclick="beginGame()">Play</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ GAME ══ -->
+    <div id="screen-game" class="screen">
+      <div class="game-header">
+        <span class="game-name" id="g-name"></span>
+        <span class="level-badge" id="g-level">Level 1</span>
+      </div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+      <div class="instruction" id="g-instruction"></div>
+      <div class="stimulus-area" id="g-stimulus"></div>
+      <div class="feedback neutral" id="g-feedback"></div>
+      <div id="g-action-area"></div>
+    </div>
+
+    <!-- ══ GAME OVER ══ -->
+    <div id="screen-gameover" class="screen">
+      <div class="gameover-box">
+        <h2 id="go-title">Game Over</h2>
+        <div class="score-big" id="go-score">0</div>
+        <div class="score-label" id="go-label">Level reached</div>
+        <div class="compare" id="go-compare"></div>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="goMenu()">Menu</button>
+          <button class="btn btn-primary" onclick="replayGame()">Play Again</button>
+          <button class="btn btn-secondary" onclick="showScoreboard()">Scores</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SCOREBOARD ══ -->
+    <div id="screen-scores" class="screen">
+      <div style="width:100%;display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="font-size:1.3rem;font-weight:800;">All Scores</h2>
+        <button class="btn btn-secondary" style="padding:8px 16px;font-size:0.82rem;" onclick="clearScores()">Clear</button>
+      </div>
+      <div id="scores-content" style="width:100%;background:#fff;border:1.5px solid #e9ecef;border-radius:16px;overflow:hidden;"></div>
+      <button class="btn btn-secondary" onclick="goMenu()">← Back to Menu</button>
+    </div>
+  </main>
+
+  <footer>Inspired by George A. Miller's "The Magical Number Seven, Plus or Minus Two" (1956)</footer>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  SVG ICON LIBRARY (inline, no external deps)
+// ══════════════════════════════════════════════
+const ICONS = {
+  fish:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round"><path d="M28 20c0 6-6 11-14 11 2-3 2-6 2-11s0-8-2-11c8 0 14 5 14 11z"/><path d="M6 11 L10 20 L6 29"/><circle cx="24" cy="17" r="1.5" fill="#4361ee"/></svg>`,
+  house:   `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="20,6 34,18 34,34 6,34 6,18"/><rect x="15" y="24" width="10" height="10"/><polyline points="6,18 20,6 34,18"/></svg>`,
+  bird:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round"><path d="M8 22 Q14 10 22 14 Q30 10 36 18"/><path d="M22 14 Q24 22 20 30"/><circle cx="34" cy="16" r="1.5" fill="#4361ee"/><path d="M10 22 Q8 26 12 28"/></svg>`,
+  cat:     `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="20" cy="24" rx="11" ry="9"/><path d="M9 20 L6 12 L13 17"/><path d="M31 20 L34 12 L27 17"/><circle cx="16" cy="23" r="1.5" fill="#4361ee"/><circle cx="24" cy="23" r="1.5" fill="#4361ee"/><path d="M20 26 Q18 28 16 27"/><path d="M20 26 Q22 28 24 27"/></svg>`,
+  star:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linejoin="round"><polygon points="20,4 24,15 36,15 27,23 30,34 20,27 10,34 13,23 4,15 16,15"/></svg>`,
+  tree:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="20,4 34,28 6,28"/><rect x="17" y="28" width="6" height="8"/></svg>`,
+  moon:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round"><path d="M28 20a10 10 0 1 1-10-10 8 8 0 0 0 10 10z"/></svg>`,
+  sun:     `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round"><circle cx="20" cy="20" r="7"/><line x1="20" y1="4" x2="20" y2="9"/><line x1="20" y1="31" x2="20" y2="36"/><line x1="4" y1="20" x2="9" y2="20"/><line x1="31" y1="20" x2="36" y2="20"/><line x1="8" y1="8" x2="12" y2="12"/><line x1="28" y1="28" x2="32" y2="32"/><line x1="32" y1="8" x2="28" y2="12"/><line x1="12" y1="28" x2="8" y2="32"/></svg>`,
+  cloud:   `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 28a8 8 0 0 1 0-16 10 10 0 0 1 20 4 6 6 0 0 1 0 12H10z"/></svg>`,
+  heart:   `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 34 L6 20 A8 8 0 0 1 20 10 A8 8 0 0 1 34 20 Z"/></svg>`,
+  flower:  `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round"><circle cx="20" cy="20" r="4"/><ellipse cx="20" cy="10" rx="3" ry="5" transform="rotate(0 20 20)"/><ellipse cx="20" cy="10" rx="3" ry="5" transform="rotate(60 20 20)"/><ellipse cx="20" cy="10" rx="3" ry="5" transform="rotate(120 20 20)"/><ellipse cx="20" cy="10" rx="3" ry="5" transform="rotate(180 20 20)"/><ellipse cx="20" cy="10" rx="3" ry="5" transform="rotate(240 20 20)"/><ellipse cx="20" cy="10" rx="3" ry="5" transform="rotate(300 20 20)"/></svg>`,
+  plane:   `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20 L34 8 L28 20 L34 32 Z"/><path d="M28 20 L14 24 L16 30"/><path d="M28 20 L18 16 L16 10"/></svg>`,
+  bell:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 a10 10 0 0 1 10 10v10H10V16a10 10 0 0 1 10-10z"/><line x1="16" y1="26" x2="24" y2="26"/><path d="M17 30 a3 3 0 0 0 6 0"/></svg>`,
+  key:     `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="18" r="8"/><line x1="20" y1="22" x2="36" y2="30"/><line x1="30" y1="26" x2="30" y2="32"/><line x1="34" y1="28" x2="34" y2="34"/></svg>`,
+  leaf:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round"><path d="M10 34 Q12 14 34 8 Q28 30 10 34z"/><line x1="10" y1="34" x2="26" y2="16"/></svg>`,
+  gem:     `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="20,6 34,16 28,34 12,34 6,16"/><polyline points="6,16 14,24 20,6 26,24 34,16"/><line x1="14" y1="24" x2="26" y2="24"/></svg>`,
+  anchor:  `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round"><circle cx="20" cy="12" r="4"/><line x1="20" y1="16" x2="20" y2="34"/><path d="M10 20 H30"/><path d="M10 34 Q20 28 30 34"/></svg>`,
+  shield:  `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 L34 12 V22 Q34 34 20 38 Q6 34 6 22 V12 Z"/></svg>`,
+  crown:   `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,30 10,16 20,24 30,12 34,28 6,28"/><line x1="6" y1="30" x2="34" y2="30"/></svg>`,
+  bolt:    `<svg viewBox="0 0 40 40" fill="none" stroke="#4361ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22,4 10,22 20,22 18,36 30,18 20,18"/></svg>`,
+};
+const ICON_KEYS = Object.keys(ICONS);
+
+// ══════════════════════════════════════════════
+//  SCORE STORAGE
+// ══════════════════════════════════════════════
+function loadScores() {
+  try { return JSON.parse(localStorage.getItem('magic7_scores') || '[]'); } catch { return []; }
+}
+function saveScore(entry) {
+  const scores = loadScores();
+  scores.push(entry);
+  localStorage.setItem('magic7_scores', JSON.stringify(scores));
+}
+function clearScores() {
+  if (confirm('Clear all scores?')) {
+    localStorage.removeItem('magic7_scores');
+    renderScoreboard();
+  }
+}
+
+// ══════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════
+let currentGame = null;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+function goMenu() {
+  stopTimers();
+  showScreen('menu');
+}
+
+function showScoreboard() {
+  renderScoreboard();
+  showScreen('scores');
+}
+
+// ══════════════════════════════════════════════
+//  GAME REGISTRY
+// ══════════════════════════════════════════════
+const GAMES = {
+  note:    { name: 'Note Recognition',  icon: '🎵' },
+  digit:   { name: 'Digit Span',        icon: '🔢' },
+  spatial: { name: 'Spatial Grid',      icon: '⬛' },
+  rowan:   { name: 'Shape Recall',       icon: '🔷' },
+  plusone: { name: 'Digit Span +1',     icon: '➕' },
+};
+
+const INTROS = {
+  note: {
+    title: '🎵 Note Recognition',
+    desc:  'Train your ear to identify piano notes by sound alone.',
+    rules: '• You see a set of labeled piano keys\n• Click "Play All Notes" to hear each key\'s tone\n• Click "Ready" when you want to be tested\n• A random note from the set plays — no visual hint\n• Click the key you heard\n• Correct: advance to the next level with one more key\n• Wrong: game over'
+  },
+  digit: {
+    title: '🔢 Digit Span',
+    desc:  'The classic working-memory benchmark.',
+    rules: '• A sequence of digits flashes on screen\n• Recall and type the full sequence\n• Each level adds one more digit\n• One wrong answer ends the game'
+  },
+  spatial: {
+    title: '⬛ Spatial Grid',
+    desc:  'Remember where the dots appeared on the grid.',
+    rules: '• Dots appear at random positions on a 10×10 grid\n• Study them — no timer pressure\n• When ready, click "Done Studying"\n• Click all the dot locations on the blank grid\n• Clicks within 1 cell of the target count as correct\n• Level 1: 2 dots, 5 seconds. Each level: +1 dot, +0.5 seconds\n• Miss any dot and the game ends'
+  },
+  rowan: {
+    title: '🔷 Shape Recall',
+    desc:  'Study a set of icons, then find the one that was in it.',
+    rules: '• A set of icons appears for a limited time\n• After they disappear, choose the matching icon from a new list\n• Level 1: 2 icons shown, 5 seconds, pick from 3 choices\n• Each level: +1 icon shown, +0.5 seconds, +1 choice\n• One wrong answer ends the game'
+  },
+  plusone: {
+    title: '➕ Digit Span +1',
+    desc:  'A working-memory twist: remember the sequence, then add one to every digit.',
+    rules: '• A sequence of digits is shown for 3 seconds\n• After it disappears, type each digit +1 (9 wraps to 0)\n• You have 10 seconds to answer — the timer is visible\n• Level 1: 3 digits. Each level: +1 digit, +0.5 seconds to study\n• One wrong answer ends the game'
+  },
+};
+
+function startGame(gameId) {
+  currentGame = gameId;
+  const intro = INTROS[gameId];
+  document.getElementById('intro-title').textContent = intro.title;
+  document.getElementById('intro-desc').textContent = intro.desc;
+  document.getElementById('intro-rules').textContent = intro.rules;
+  showScreen('intro');
+}
+
+function beginGame() {
+  showScreen('game');
+  document.getElementById('g-name').textContent = GAMES[currentGame].name;
+  initGameState();
+}
+
+function replayGame() {
+  showScreen('game');
+  initGameState();
+}
+
+// ══════════════════════════════════════════════
+//  TIMER UTILITIES
+// ══════════════════════════════════════════════
+let timerInterval = null;
+let timerTimeout  = null;
+
+function stopTimers() {
+  clearInterval(timerInterval);
+  clearTimeout(timerTimeout);
+  timerInterval = null;
+  timerTimeout  = null;
+}
+
+function runTimer(durationMs, onEnd) {
+  stopTimers();
+  const bar = document.getElementById('timer-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  const start = Date.now();
+  requestAnimationFrame(() => {
+    bar.style.transition = `width ${durationMs}ms linear`;
+    bar.style.width = '0%';
+  });
+  timerTimeout = setTimeout(onEnd, durationMs);
+}
+
+function hideTimer() {
+  const bar = document.getElementById('timer-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+}
+
+// ══════════════════════════════════════════════
+//  FEEDBACK
+// ══════════════════════════════════════════════
+function setFeedback(msg, type='neutral') {
+  const el = document.getElementById('g-feedback');
+  el.textContent = msg;
+  el.className = 'feedback ' + type;
+}
+
+// ══════════════════════════════════════════════
+//  GAME STATE DISPATCH
+// ══════════════════════════════════════════════
+function initGameState() {
+  stopTimers();
+  setFeedback('');
+  document.getElementById('g-action-area').innerHTML = '';
+  document.getElementById('g-stimulus').innerHTML = '';
+  if (currentGame === 'note')    initNote();
+  if (currentGame === 'digit')   initDigit();
+  if (currentGame === 'spatial') initSpatial();
+  if (currentGame === 'rowan')   initRowan();
+  if (currentGame === 'plusone') initPlusOne();
+}
+
+// ══════════════════════════════════════════════
+//  GAME OVER
+// ══════════════════════════════════════════════
+function gameOver(level, scoreLine, label) {
+  stopTimers();
+  const scores = loadScores();
+  const gameName = GAMES[currentGame].name;
+
+  const entry = {
+    game: currentGame,
+    gameName,
+    level,
+    score: scoreLine,
+    date: new Date().toLocaleDateString(),
+  };
+  saveScore(entry);
+
+  // compare
+  const sameGame = scores.filter(s => s.game === currentGame);
+  const best = sameGame.length > 0 ? Math.max(...sameGame.map(s => s.level)) : 0;
+  let compareText = '';
+  if (sameGame.length === 0) {
+    compareText = 'First time playing this game!';
+  } else if (level > best) {
+    compareText = `New personal best! Previous best: Level ${best}.`;
+  } else if (level === best) {
+    compareText = `Matched your personal best of Level ${best}!`;
+  } else {
+    compareText = `Your personal best for this game: Level ${best}.`;
+  }
+  const allLevels = scores.map(s => s.level);
+  if (allLevels.length > 1) {
+    const avg = (allLevels.reduce((a,b)=>a+b,0)/allLevels.length).toFixed(1);
+    compareText += ` Your all-game average: Level ${avg}.`;
+  }
+
+  document.getElementById('go-title').textContent = `${GAMES[currentGame].icon} ${gameName}`;
+  document.getElementById('go-score').textContent = level;
+  document.getElementById('go-label').textContent = label || 'Level reached';
+  document.getElementById('go-compare').textContent = compareText;
+  showScreen('gameover');
+}
+
+// ══════════════════════════════════════════════
+//  SCOREBOARD RENDER
+// ══════════════════════════════════════════════
+function renderScoreboard() {
+  const scores = loadScores();
+  const container = document.getElementById('scores-content');
+  if (scores.length === 0) {
+    container.innerHTML = '<div class="no-scores">No scores yet. Play a game!</div>';
+    return;
+  }
+
+  // Most recent score entry
+  const latest = scores[scores.length - 1];
+
+  // Per-game stats
+  const gameIds = ['note', 'digit', 'spatial', 'rowan', 'plusone'];
+  let html = `<table class="score-table"><thead><tr>
+    <th>Game</th><th>Avg Level</th><th>Plays</th><th>Your Last</th>
+  </tr></thead><tbody>`;
+
+  gameIds.forEach(gid => {
+    const group = scores.filter(s => s.game === gid);
+    if (group.length === 0) return;
+    const avg = (group.reduce((a, s) => a + s.level, 0) / group.length).toFixed(1);
+    const last = group[group.length - 1].level;
+    const isLatest = latest.game === gid;
+    const diff = last - parseFloat(avg);
+    const diffStr = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
+    const diffColor = diff > 0 ? '#2dc653' : diff < 0 ? '#e63946' : '#6c757d';
+    html += `<tr ${isLatest ? 'class="highlight"' : ''}>
+      <td>${GAMES[gid].icon} ${GAMES[gid].name}</td>
+      <td>${avg}</td>
+      <td>${group.length}</td>
+      <td>${last} <span style="font-size:0.78rem;color:${diffColor};font-weight:700;">(${diffStr})</span></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+
+  // Summary line
+  const latestGame = GAMES[latest.game];
+  const latestGroup = scores.filter(s => s.game === latest.game);
+  const latestAvg = (latestGroup.reduce((a, s) => a + s.level, 0) / latestGroup.length).toFixed(1);
+  const diff = latest.level - parseFloat(latestAvg);
+  const diffStr = diff > 0 ? `${diff.toFixed(1)} above` : diff < 0 ? `${Math.abs(diff).toFixed(1)} below` : 'exactly at';
+  const summary = `Most recent: ${latestGame.icon} ${latestGame.name}, Level ${latest.level} — ${diffStr} the average (${latestAvg}).`;
+
+  container.innerHTML = html + `<div style="padding:12px 16px;font-size:0.83rem;color:#495057;border-top:1px solid #f1f3f9;">${summary}</div>`;
+}
+
+// ════════════════════════════════════════════════════
+//  GAME 1 — NOTE RECOGNITION (Piano ear training)
+// ════════════════════════════════════════════════════
+
+// All notes in level order: C4, D4, E4, F4, G4, A4, B4, C5, D5
+// Each level adds one key. Level 1 = C4 + D4.
+const NOTE_SEQUENCE = [
+  { name: 'C4', freq: 261.63, black: false },
+  { name: 'D4', freq: 293.66, black: false },
+  { name: 'E4', freq: 329.63, black: false },
+  { name: 'F4', freq: 349.23, black: false },
+  { name: 'G4', freq: 392.00, black: false },
+  { name: 'A4', freq: 440.00, black: false },
+  { name: 'B4', freq: 493.88, black: false },
+  { name: 'C5', freq: 523.25, black: false },
+  { name: 'D5', freq: 587.33, black: false },
+];
+
+// Black keys sit between white keys. For display we interleave with sharps.
+// Full chromatic layout for the visible range C4–D5:
+// C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4 C5 C#5 D5
+const PIANO_LAYOUT = [
+  { name:'C4',  freq:261.63, black:false },
+  { name:'C#4', freq:277.18, black:true  },
+  { name:'D4',  freq:293.66, black:false },
+  { name:'D#4', freq:311.13, black:true  },
+  { name:'E4',  freq:329.63, black:false },
+  { name:'F4',  freq:349.23, black:false },
+  { name:'F#4', freq:369.99, black:true  },
+  { name:'G4',  freq:392.00, black:false },
+  { name:'G#4', freq:415.30, black:true  },
+  { name:'A4',  freq:440.00, black:false },
+  { name:'A#4', freq:466.16, black:true  },
+  { name:'B4',  freq:493.88, black:false },
+  { name:'C5',  freq:523.25, black:false },
+  { name:'C#5', freq:554.37, black:true  },
+  { name:'D5',  freq:587.33, black:false },
+];
+
+let noteState = {};
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playFreq(freq, duration = 0.8) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  gain.gain.setValueAtTime(0.0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration + 0.05);
+}
+
+function initNote() {
+  noteState = { level: 1, phase: 'study', target: null };
+  document.getElementById('g-level').textContent = 'Level 1';
+  hideTimer();
+  setFeedback('');
+  noteRenderStudy();
+}
+
+function noteActiveKeys() {
+  // Level 1 = first 2 notes, level 2 = first 3, etc.
+  return NOTE_SEQUENCE.slice(0, noteState.level + 1);
+}
+
+function noteRenderStudy() {
+  noteState.phase = 'study';
+  const active = noteActiveKeys();
+  setFeedback(`Listen to the notes, then click Ready.`, 'neutral');
+  document.getElementById('g-stimulus').innerHTML = '';
+
+  const actionArea = document.getElementById('g-action-area');
+  actionArea.innerHTML = `<div class="piano-wrap">
+    ${noteBuildPianoHTML(active, true)}
+    <div class="piano-btns">
+      <button class="btn btn-secondary" onclick="notePlayAll()">▶ Play All Notes</button>
+      <button class="btn btn-primary"   onclick="noteReady()">Ready →</button>
+    </div>
+  </div>`;
+}
+
+function noteBuildPianoHTML(activeNotes, labeled) {
+  const activeNames = activeNotes.map(n => n.name);
+  // Only render keys up to the last active note
+  const lastActive = PIANO_LAYOUT.findIndex(k => k.name === activeNotes[activeNotes.length - 1].name);
+  const visibleLayout = PIANO_LAYOUT.slice(0, lastActive + 1);
+
+  // We need to render white keys as a row, black keys absolutely positioned on top.
+  // Use a relative container approach with inline positioning.
+  const WHITE_W = 48, BLACK_W = 30, WHITE_H = 140, BLACK_H = 88;
+  const GAP = 2;
+
+  // Compute x positions for white keys
+  let whitePositions = [];
+  let blackPositions = [];
+  let wx = 0;
+  visibleLayout.forEach((key, i) => {
+    if (!key.black) {
+      whitePositions.push({ key, x: wx });
+      wx += WHITE_W + GAP;
+    }
+  });
+
+  // For black keys, position between the two surrounding white keys
+  visibleLayout.forEach((key, i) => {
+    if (key.black) {
+      // find the white key before and after
+      const prevWhite = whitePositions.filter(w => PIANO_LAYOUT.indexOf(w.key) < i).pop();
+      const nextWhite = whitePositions.find(w => PIANO_LAYOUT.indexOf(w.key) > i);
+      if (prevWhite && nextWhite) {
+        const cx = (prevWhite.x + WHITE_W + nextWhite.x) / 2;
+        blackPositions.push({ key, x: cx - BLACK_W / 2 });
+      }
+    }
+  });
+
+  const totalW = wx - GAP;
+  const isActive = (name) => activeNames.includes(name);
+
+  let html = `<div style="position:relative;width:${totalW}px;height:${WHITE_H}px;margin:0 auto;">`;
+
+  // white keys first
+  whitePositions.forEach(({ key, x }) => {
+    const active = isActive(key.name);
+    const disabledAttr = active ? '' : 'disabled';
+    const disabledClass = active ? '' : ' disabled';
+    const labelHTML = (labeled && active) ? `<span class="key-label">${key.name.replace('#','♯')}</span>` : '';
+    html += `<div class="piano-key white${disabledClass}"
+      style="position:absolute;left:${x}px;top:0;width:${WHITE_W}px;height:${WHITE_H}px;${!active?'opacity:0.35;':''}"
+      ${active ? `onclick="notePianoClick('${key.name}')"` : ''}
+      id="pkey-${key.name.replace('#','s')}"
+    >${labelHTML}</div>`;
+  });
+
+  // black keys on top
+  blackPositions.forEach(({ key, x }) => {
+    const active = isActive(key.name);
+    const disabledClass = active ? '' : ' disabled';
+    const labelHTML = (labeled && active) ? `<span class="key-label" style="color:#adb5bd;">${key.name.replace('#','♯')}</span>` : '';
+    html += `<div class="piano-key black${disabledClass}"
+      style="position:absolute;left:${x}px;top:0;width:${BLACK_W}px;height:${BLACK_H}px;${!active?'opacity:0.2;':''}"
+      ${active ? `onclick="notePianoClick('${key.name}')"` : ''}
+      id="pkey-${key.name.replace('#','s')}"
+    >${labelHTML}</div>`;
+  });
+
+  html += '</div>';
+  return html;
+}
+
+function notePlayAll() {
+  const active = noteActiveKeys();
+  active.forEach((note, i) => {
+    setTimeout(() => {
+      playFreq(note.freq, 0.7);
+      const id = 'pkey-' + note.name.replace('#','s');
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('pressed');
+        setTimeout(() => el.classList.remove('pressed'), 400);
+      }
+    }, i * 650);
+  });
+}
+
+function noteReady() {
+  const active = noteActiveKeys();
+  const target = active[Math.floor(Math.random() * active.length)];
+  noteState.target = target;
+  noteState.phase = 'listen';
+
+  setFeedback('Which note was that?', 'neutral');
+
+  // Rebuild piano without labels, keys still clickable
+  const actionArea = document.getElementById('g-action-area');
+  actionArea.innerHTML = `<div class="piano-wrap">
+    ${noteBuildPianoHTML(active, false)}
+    <div class="piano-btns">
+      <button class="btn btn-secondary" onclick="notePlayTarget()">▶ Play Again</button>
+    </div>
+  </div>`;
+
+  // Play the mystery note after a brief pause
+  setTimeout(() => playFreq(target.freq, 1.0), 300);
+}
+
+function notePlayTarget() {
+  if (noteState.phase !== 'listen') return;
+  playFreq(noteState.target.freq, 1.0);
+}
+
+function notePianoClick(noteName) {
+  if (noteState.phase !== 'listen') return;
+  noteState.phase = 'result';
+
+  const correct = noteState.target.name;
+  const clickedId = 'pkey-' + noteName.replace('#','s');
+  const correctId  = 'pkey-' + correct.replace('#','s');
+
+  const clickedEl = document.getElementById(clickedId);
+  const correctEl = document.getElementById(correctId);
+
+  if (noteName === correct) {
+    if (clickedEl) clickedEl.classList.add('correct-flash');
+    setFeedback(`Correct! That was ${correct}.`, 'correct');
+    playFreq(noteState.target.freq, 0.6);
+    noteState.level++;
+    document.getElementById('g-level').textContent = `Level ${noteState.level}`;
+    if (noteState.level + 1 > NOTE_SEQUENCE.length) {
+      // Beat all levels!
+      setTimeout(() => gameOver(noteState.level - 1, `Level ${noteState.level - 1}`, 'All notes mastered!'), 1200);
+    } else {
+      setTimeout(() => noteRenderStudy(), 1200);
+    }
+  } else {
+    if (clickedEl) clickedEl.classList.add('wrong-flash');
+    if (correctEl) setTimeout(() => { correctEl.classList.add('correct-flash'); playFreq(noteState.target.freq, 1.0); }, 400);
+    setFeedback(`Wrong! It was ${correct}.`, 'wrong');
+    setTimeout(() => gameOver(noteState.level, `Level ${noteState.level}`, 'Level reached'), 1800);
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  GAME 2 — DIGIT SPAN
+// ════════════════════════════════════════════════════
+let digitState = {};
+
+function initDigit() {
+  digitState = { level: 3, phase: 'show', flashIndex: 0, sequence: [] };
+  document.getElementById('g-level').textContent = 'Level 1';
+  setFeedback('');
+  digitNextRound();
+}
+
+function digitNextRound() {
+  digitState.sequence = Array.from({length: digitState.level}, () => Math.floor(Math.random()*10));
+  digitState.flashIndex = 0;
+  digitState.phase = 'show';
+  document.getElementById('g-action-area').innerHTML = '';
+  setFeedback('Watch the digits!', 'neutral');
+  digitFlash();
+}
+
+function digitFlash() {
+  const stim = document.getElementById('g-stimulus');
+  const seq = digitState.sequence;
+  const i = digitState.flashIndex;
+
+  if (i > 0) {
+    // blank between digits
+    stim.innerHTML = `<div class="digit-display" style="color:#e9ecef;">—</div>`;
+    setTimeout(() => digitShowDigit(), 200);
+  } else {
+    digitShowDigit();
+  }
+}
+
+function digitShowDigit() {
+  const stim = document.getElementById('g-stimulus');
+  const seq = digitState.sequence;
+  const i = digitState.flashIndex;
+  stim.innerHTML = `<div class="digit-display">${seq[i]}</div>`;
+  runTimer(700, () => {
+    digitState.flashIndex++;
+    if (digitState.flashIndex < seq.length) {
+      digitFlash();
+    } else {
+      digitRecallPhase();
+    }
+  });
+}
+
+function digitRecallPhase() {
+  stopTimers();
+  hideTimer();
+  digitState.phase = 'recall';
+  document.getElementById('g-stimulus').innerHTML = `<div class="digit-display" style="color:#e9ecef;">?</div>`;
+  setFeedback('Type the sequence in order.', 'neutral');
+
+  const html = `<div class="digit-input-area">
+    <input class="digit-input" id="digit-typed" type="tel" maxlength="${digitState.sequence.length}" placeholder="${'_'.repeat(digitState.sequence.length)}" autocomplete="off"/>
+    <div class="numpad" id="numpad"></div>
+    <button class="btn btn-primary" onclick="digitSubmit()">Submit</button>
+  </div>`;
+  document.getElementById('g-action-area').innerHTML = html;
+
+  // numpad
+  const pad = document.getElementById('numpad');
+  [1,2,3,4,5,6,7,8,9,'⌫',0,'✓'].forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'numpad-btn';
+    b.textContent = v;
+    b.onclick = () => {
+      const inp = document.getElementById('digit-typed');
+      if (!inp) return;
+      if (v === '⌫') inp.value = inp.value.slice(0,-1);
+      else if (v === '✓') digitSubmit();
+      else if (inp.value.length < digitState.sequence.length) inp.value += v;
+    };
+    pad.appendChild(b);
+  });
+  document.getElementById('digit-typed').focus();
+  document.getElementById('digit-typed').addEventListener('keydown', e => { if(e.key==='Enter') digitSubmit(); });
+}
+
+function digitSubmit() {
+  const inp = document.getElementById('digit-typed');
+  if (!inp) return;
+  const typed = inp.value.trim();
+  const correct = digitState.sequence.join('');
+  if (typed === correct) {
+    setFeedback('Correct!', 'correct');
+    digitState.level++;
+    const displayLevel = digitState.level - 2; // started at length 3 = level 1
+    document.getElementById('g-level').textContent = `Level ${displayLevel}`;
+    setTimeout(() => digitNextRound(), 900);
+  } else {
+    setFeedback(`Wrong! It was ${correct}.`, 'wrong');
+    const displayLevel = digitState.level - 3 + 1;
+    setTimeout(() => gameOver(displayLevel, `Level ${displayLevel}`, 'Level reached (sequence length: ' + (digitState.level-1) + ')'), 1400);
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  GAME 2b — DIGIT SPAN +1
+// ════════════════════════════════════════════════════
+let plusOneState = {};
+
+function initPlusOne() {
+  plusOneState = { level: 1, sequence: [] };
+  document.getElementById('g-level').textContent = 'Level 1';
+  setFeedback('');
+  plusOneNextRound();
+}
+
+function plusOneNextRound() {
+  const len = plusOneState.level + 2;           // L1=3 digits, L2=4, …
+  const studyMs = (3 + (plusOneState.level - 1) * 0.5) * 1000; // L1=3s, L2=3.5s, …
+  const answerMs = 10000;                        // always 10s to answer
+
+  plusOneState.sequence = Array.from({ length: len }, () => Math.floor(Math.random() * 10));
+  plusOneState.phase = 'study';
+
+  document.getElementById('g-action-area').innerHTML = '';
+  setFeedback('Memorize — then add 1 to each digit.', 'neutral');
+
+  // Show the sequence as a single wide number
+  document.getElementById('g-stimulus').innerHTML =
+    `<div class="digit-display">${plusOneState.sequence.join(' ')}</div>`;
+
+  runTimer(studyMs, () => {
+    // Hide sequence, start answer phase
+    document.getElementById('g-stimulus').innerHTML =
+      `<div class="digit-display" style="color:#e9ecef;">?</div>`;
+    setFeedback('Type each digit +1 (9 → 0)', 'neutral');
+    plusOneState.phase = 'answer';
+    plusOneShowInput(len, answerMs);
+  });
+}
+
+function plusOneShowInput(len, answerMs) {
+  const html = `<div class="digit-input-area">
+    <input class="digit-input" id="po-typed" type="tel" maxlength="${len}"
+      placeholder="${'_'.repeat(len)}" autocomplete="off"/>
+    <div class="numpad" id="po-numpad"></div>
+    <button class="btn btn-primary" onclick="plusOneSubmit()">Submit</button>
+  </div>`;
+  document.getElementById('g-action-area').innerHTML = html;
+
+  const pad = document.getElementById('po-numpad');
+  [1,2,3,4,5,6,7,8,9,'⌫',0,'✓'].forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'numpad-btn';
+    b.textContent = v;
+    b.onclick = () => {
+      const inp = document.getElementById('po-typed');
+      if (!inp) return;
+      if (v === '⌫') inp.value = inp.value.slice(0, -1);
+      else if (v === '✓') plusOneSubmit();
+      else if (inp.value.length < len) inp.value += v;
+    };
+    pad.appendChild(b);
+  });
+
+  const inp = document.getElementById('po-typed');
+  inp.focus();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') plusOneSubmit(); });
+
+  // 10-second answer timer — time's up = wrong
+  runTimer(answerMs, () => {
+    if (plusOneState.phase !== 'answer') return;
+    plusOneState.phase = 'done';
+    const correct = plusOneState.sequence.map(d => (d + 1) % 10).join('');
+    setFeedback(`Time's up! Answer was ${correct}.`, 'wrong');
+    setTimeout(() => gameOver(plusOneState.level, `Level ${plusOneState.level}`, 'Level reached'), 1600);
+  });
+}
+
+function plusOneSubmit() {
+  if (plusOneState.phase !== 'answer') return;
+  plusOneState.phase = 'done';
+  stopTimers();
+
+  const inp = document.getElementById('po-typed');
+  const typed = inp ? inp.value.trim() : '';
+  const correct = plusOneState.sequence.map(d => (d + 1) % 10).join('');
+
+  if (typed === correct) {
+    setFeedback('Correct!', 'correct');
+    plusOneState.level++;
+    document.getElementById('g-level').textContent = `Level ${plusOneState.level}`;
+    setTimeout(() => plusOneNextRound(), 900);
+  } else {
+    setFeedback(`Wrong! Answer was ${correct}.`, 'wrong');
+    setTimeout(() => gameOver(plusOneState.level, `Level ${plusOneState.level}`, 'Level reached'), 1600);
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  GAME 3 — SPATIAL GRID (dot location memory)
+// ════════════════════════════════════════════════════
+const SGRID = 10; // 10×10 grid
+let spatialState = {};
+
+function initSpatial() {
+  spatialState = { level: 1, dots: [], found: [], phase: 'study' };
+  document.getElementById('g-level').textContent = 'Level 1';
+  hideTimer();
+  setFeedback('');
+  spatialNextRound();
+}
+
+function spatialNextRound() {
+  const dotCount  = spatialState.level + 1;  // L1=2, L2=3 …
+  const studySecs = 5 + (spatialState.level - 1) * 0.5; // L1=5s, L2=5.5s …
+
+  // Pick unique random cells
+  const dots = [];
+  while (dots.length < dotCount) {
+    const r = Math.floor(Math.random() * SGRID);
+    const c = Math.floor(Math.random() * SGRID);
+    if (!dots.find(d => d.r === r && d.c === c)) dots.push({ r, c });
+  }
+  spatialState.dots   = dots;
+  spatialState.found  = [];
+  spatialState.phase  = 'study';
+
+  document.getElementById('g-action-area').innerHTML = '';
+  setFeedback(`Study the ${dotCount} dot${dotCount > 1 ? 's' : ''}. (${studySecs}s)`, 'neutral');
+  spatialRenderGrid(true);
+
+  // Auto-hide after study time, or player can click Done early
+  spatialState.studyTimeout = setTimeout(() => spatialStartRecall(), studySecs * 1000);
+
+  document.getElementById('g-action-area').innerHTML =
+    `<button class="btn btn-primary" onclick="spatialStartRecall()">Done Studying →</button>`;
+}
+
+function spatialRenderGrid(showDots) {
+  const CELL = 36; // px per cell — fits 10×10 comfortably
+  const SIZE = CELL * SGRID;
+  const stim = document.getElementById('g-stimulus');
+
+  let html = `<div id="sgrid-wrap" style="position:relative;width:${SIZE}px;height:${SIZE}px;
+    background:#fff;border:1.5px solid #e9ecef;border-radius:10px;overflow:hidden;cursor:${showDots?'default':'crosshair'};">`;
+
+  // grid lines
+  for (let i = 1; i < SGRID; i++) {
+    html += `<div style="position:absolute;left:${i*CELL}px;top:0;width:1px;height:100%;background:#f1f3f9;"></div>`;
+    html += `<div style="position:absolute;top:${i*CELL}px;left:0;height:1px;width:100%;background:#f1f3f9;"></div>`;
+  }
+
+  // dots
+  if (showDots) {
+    spatialState.dots.forEach(({ r, c }) => {
+      const x = c * CELL + CELL / 2;
+      const y = r * CELL + CELL / 2;
+      html += `<div style="position:absolute;left:${x-10}px;top:${y-10}px;width:20px;height:20px;
+        border-radius:50%;background:#4361ee;box-shadow:0 2px 8px rgba(67,97,238,0.4);"></div>`;
+    });
+  }
+
+  html += `</div>`;
+  stim.innerHTML = html;
+
+  if (!showDots) {
+    document.getElementById('sgrid-wrap').addEventListener('click', spatialGridClick);
+  }
+}
+
+function spatialStartRecall() {
+  clearTimeout(spatialState.studyTimeout);
+  spatialState.phase = 'recall';
+  document.getElementById('g-action-area').innerHTML = '';
+  setFeedback(`Click all ${spatialState.dots.length} dot locations.`, 'neutral');
+  spatialRenderGrid(false);
+}
+
+function spatialGridClick(e) {
+  if (spatialState.phase !== 'recall') return;
+  const wrap = document.getElementById('sgrid-wrap');
+  if (!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  const CELL = rect.width / SGRID;
+  const col = Math.floor((e.clientX - rect.left) / CELL);
+  const row = Math.floor((e.clientY - rect.top)  / CELL);
+
+  // Find the closest unmatched dot within 1-cell Chebyshev distance
+  const match = spatialState.dots.find(d =>
+    !spatialState.found.find(f => f.r === d.r && f.c === d.c) &&
+    Math.abs(d.r - row) <= 1 && Math.abs(d.c - col) <= 1
+  );
+
+  const x = col * CELL + CELL / 2;
+  const y = row * CELL + CELL / 2;
+
+  if (match) {
+    spatialState.found.push(match);
+    // Show green dot at exact target position
+    const tx = match.c * CELL + CELL / 2;
+    const ty = match.r * CELL + CELL / 2;
+    spatialPlaceDot(wrap, CELL, tx, ty, '#2dc653');
+
+    if (spatialState.found.length === spatialState.dots.length) {
+      spatialState.phase = 'done';
+      setFeedback('All found!', 'correct');
+      spatialState.level++;
+      document.getElementById('g-level').textContent = `Level ${spatialState.level}`;
+      setTimeout(() => spatialNextRound(), 1000);
+    } else {
+      setFeedback(`${spatialState.found.length} / ${spatialState.dots.length} found`, 'neutral');
+    }
+  } else {
+    // Miss — show red X, reveal all remaining targets, end game
+    spatialState.phase = 'done';
+    spatialPlaceDot(wrap, CELL, x, y, '#e63946');
+    // Reveal missed dots in orange
+    spatialState.dots.forEach(d => {
+      if (!spatialState.found.find(f => f.r === d.r && f.c === d.c)) {
+        const dx = d.c * CELL + CELL / 2;
+        const dy = d.r * CELL + CELL / 2;
+        spatialPlaceDot(wrap, CELL, dx, dy, '#ffb703');
+      }
+    });
+    setFeedback('Missed!', 'wrong');
+    setTimeout(() => gameOver(spatialState.level, `Level ${spatialState.level}`, 'Level reached'), 1600);
+  }
+}
+
+function spatialPlaceDot(wrap, CELL, x, y, color) {
+  const dot = document.createElement('div');
+  dot.style.cssText = `position:absolute;left:${x-10}px;top:${y-10}px;width:20px;height:20px;
+    border-radius:50%;background:${color};pointer-events:none;z-index:10;`;
+  wrap.appendChild(dot);
+}
+
+// ════════════════════════════════════════════════════
+//  GAME 4 — ROWAN'S GAME
+// ════════════════════════════════════════════════════
+let rowanState = {};
+
+function initRowan() {
+  rowanState = { level: 1, phase: 'study' };
+  document.getElementById('g-level').textContent = 'Level 1';
+  setFeedback('');
+  rowanNextRound();
+}
+
+function rowanNextRound() {
+  const level = rowanState.level;
+  const studyCount = level + 1;        // L1=2, L2=3, L3=4 …
+  const choiceCount = level + 2;       // L1=3, L2=4, L3=5 …
+  const studyTime = (4.5 + level * 0.5) * 1000; // L1=5s, L2=5.5s …
+
+  // Pick study icons (no duplicates)
+  const shuffled = [...ICON_KEYS].sort(() => Math.random()-0.5);
+  const studyIcons = shuffled.slice(0, studyCount);
+
+  // Pick ONE correct answer from studyIcons
+  const correctIcon = studyIcons[Math.floor(Math.random() * studyIcons.length)];
+
+  // Build choices: correctIcon + distractors (icons NOT in studyIcons)
+  const distractors = ICON_KEYS.filter(k => !studyIcons.includes(k)).sort(() => Math.random()-0.5).slice(0, choiceCount-1);
+  const choices = [correctIcon, ...distractors].sort(() => Math.random()-0.5);
+
+  rowanState = { ...rowanState, studyIcons, correctIcon, choices, phase: 'study', studyTime };
+
+  document.getElementById('g-action-area').innerHTML = '';
+  setFeedback(`Memorize the ${studyCount} icons! (${(studyTime/1000).toFixed(1)}s)`, 'neutral');
+
+  // Show study icons
+  const stim = document.getElementById('g-stimulus');
+  stim.innerHTML = studyIcons.map(k => `
+    <div class="icon-card">
+      ${ICONS[k]}
+    </div>`).join('');
+
+  runTimer(studyTime, () => {
+    rowanState.phase = 'choose';
+    stim.innerHTML = '<div style="color:#adb5bd;font-size:0.9rem;font-style:italic;">Icons hidden — make your choice below</div>';
+    setFeedback('Which icon was in the set?', 'neutral');
+    hideTimer();
+    rowanShowChoices();
+  });
+}
+
+function rowanShowChoices() {
+  const { choices, correctIcon } = rowanState;
+  const action = document.getElementById('g-action-area');
+  action.innerHTML = `<div class="choice-grid">` +
+    choices.map(k => `
+      <div class="icon-card selectable" onclick="rowanPick('${k}')">
+        ${ICONS[k]}
+      </div>`).join('') +
+    `</div>`;
+}
+
+function rowanPick(iconKey) {
+  if (rowanState.phase !== 'choose') return;
+  rowanState.phase = 'result';
+  const { correctIcon, level } = rowanState;
+
+  // Mark all cards
+  document.querySelectorAll('#g-action-area .icon-card').forEach(card => {
+    card.classList.remove('selectable');
+    card.onclick = null;
+  });
+
+  // find picked and correct cards
+  const allCards = document.querySelectorAll('#g-action-area .icon-card');
+  const choiceKeys = rowanState.choices;
+  allCards.forEach((card, i) => {
+    if (choiceKeys[i] === iconKey) card.classList.add(iconKey === correctIcon ? 'correct' : 'wrong');
+    if (choiceKeys[i] === correctIcon && iconKey !== correctIcon) card.classList.add('correct');
+  });
+
+  if (iconKey === correctIcon) {
+    setFeedback('Correct!', 'correct');
+    rowanState.level++;
+    document.getElementById('g-level').textContent = `Level ${rowanState.level}`;
+    setTimeout(() => rowanNextRound(), 900);
+  } else {
+    setFeedback(`Wrong! The correct icon was highlighted.`, 'wrong');
+    setTimeout(() => gameOver(level, `Level ${level}`, 'Level reached'), 1500);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════
+showScreen('menu');
+</script>
+</body>
+</html>
