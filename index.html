@@ -15,7 +15,6 @@
     color: #1a1a2e;
     min-height: 100vh;
   }
- 
 
   /* ── Layout ── */
   #app { display: flex; flex-direction: column; min-height: 100vh; }
@@ -550,6 +549,7 @@ function showScreen(id) {
 
 function goMenu() {
   stopTimers();
+  document.removeEventListener('keydown', spatialEnterKey);
   showScreen('menu');
 }
 
@@ -1270,9 +1270,17 @@ function spatialRenderGrid(showDots) {
 function spatialStartRecall() {
   clearTimeout(spatialState.studyTimeout);
   spatialState.phase = 'recall';
-  document.getElementById('g-action-area').innerHTML = '';
-  setFeedback(`Click all ${spatialState.dots.length} dot locations.`, 'neutral');
+  spatialState.selected = []; // {r, c} cells the player has toggled on
+  const dotCount = spatialState.dots.length;
+  setFeedback(`Mark all ${dotCount} dot location${dotCount > 1 ? 's' : ''}, then press Enter.`, 'neutral');
   spatialRenderGrid(false);
+  document.getElementById('g-action-area').innerHTML =
+    `<button class="btn btn-primary" onclick="spatialSubmit()">Enter ✓</button>`;
+  document.addEventListener('keydown', spatialEnterKey);
+}
+
+function spatialEnterKey(e) {
+  if (e.key === 'Enter') spatialSubmit();
 }
 
 function spatialGridClick(e) {
@@ -1284,49 +1292,90 @@ function spatialGridClick(e) {
   const col = Math.floor((e.clientX - rect.left) / CELL);
   const row = Math.floor((e.clientY - rect.top)  / CELL);
 
-  // Find the closest unmatched dot within 1-cell Chebyshev distance
-  const match = spatialState.dots.find(d =>
-    !spatialState.found.find(f => f.r === d.r && f.c === d.c) &&
-    Math.abs(d.r - row) <= 1 && Math.abs(d.c - col) <= 1
-  );
-
-  const x = col * CELL + CELL / 2;
-  const y = row * CELL + CELL / 2;
-
-  if (match) {
-    spatialState.found.push(match);
-    // Show green dot at exact target position
-    const tx = match.c * CELL + CELL / 2;
-    const ty = match.r * CELL + CELL / 2;
-    spatialPlaceDot(wrap, CELL, tx, ty, '#2dc653');
-
-    if (spatialState.found.length === spatialState.dots.length) {
-      spatialState.phase = 'done';
-      setFeedback('All found!', 'correct');
-      spatialState.level++;
-      document.getElementById('g-level').textContent = `Level ${spatialState.level}`;
-      setTimeout(() => spatialNextRound(), 1000);
-    } else {
-      setFeedback(`${spatialState.found.length} / ${spatialState.dots.length} found`, 'neutral');
-    }
+  const existingIdx = spatialState.selected.findIndex(s => s.r === row && s.c === col);
+  if (existingIdx !== -1) {
+    // Toggle off
+    spatialState.selected.splice(existingIdx, 1);
   } else {
-    // Miss — show red X, reveal all remaining targets, end game
-    spatialState.phase = 'done';
-    spatialPlaceDot(wrap, CELL, x, y, '#e63946');
-    // Reveal missed dots in orange
-    spatialState.dots.forEach(d => {
-      if (!spatialState.found.find(f => f.r === d.r && f.c === d.c)) {
-        const dx = d.c * CELL + CELL / 2;
-        const dy = d.r * CELL + CELL / 2;
-        spatialPlaceDot(wrap, CELL, dx, dy, '#ffb703');
-      }
-    });
-    setFeedback('Missed!', 'wrong');
+    // Toggle on
+    spatialState.selected.push({ r: row, c: col });
+  }
+  spatialRedrawSelections();
+  setFeedback(`${spatialState.selected.length} marked — press Enter when done.`, 'neutral');
+}
+
+function spatialRedrawSelections() {
+  const wrap = document.getElementById('sgrid-wrap');
+  if (!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  const CELL = rect.width / SGRID;
+
+  // Remove all existing selection dots
+  wrap.querySelectorAll('.spatial-sel').forEach(el => el.remove());
+
+  spatialState.selected.forEach(({ r, c }) => {
+    const x = c * CELL + CELL / 2;
+    const y = r * CELL + CELL / 2;
+    const dot = document.createElement('div');
+    dot.className = 'spatial-sel';
+    dot.style.cssText = `position:absolute;left:${x-10}px;top:${y-10}px;width:20px;height:20px;
+      border-radius:50%;background:#4361ee;opacity:0.55;pointer-events:none;z-index:10;`;
+    wrap.appendChild(dot);
+  });
+}
+
+function spatialSubmit() {
+  if (spatialState.phase !== 'recall') return;
+  spatialState.phase = 'done';
+  document.removeEventListener('keydown', spatialEnterKey);
+  document.getElementById('g-action-area').innerHTML = '';
+
+  const wrap = document.getElementById('sgrid-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const CELL = rect.width / SGRID;
+
+  // Clear selection markers
+  wrap.querySelectorAll('.spatial-sel').forEach(el => el.remove());
+
+  // Grade: each target dot needs at least one selected cell within 1-cell Chebyshev distance
+  const dots = spatialState.dots;
+  const selected = spatialState.selected;
+  let allFound = true;
+
+  dots.forEach(d => {
+    const hit = selected.find(s => Math.abs(s.r - d.r) <= 1 && Math.abs(s.c - d.c) <= 1);
+    const dx = d.c * CELL + CELL / 2;
+    const dy = d.r * CELL + CELL / 2;
+    spatialPlaceDot(wrap, dx, dy, hit ? '#2dc653' : '#ffb703');
+    if (!hit) allFound = false;
+  });
+
+  // Show wrong selections (selected cells that don't match any dot)
+  selected.forEach(s => {
+    const near = dots.find(d => Math.abs(s.r - d.r) <= 1 && Math.abs(s.c - d.c) <= 1);
+    if (!near) {
+      const sx = s.c * CELL + CELL / 2;
+      const sy = s.r * CELL + CELL / 2;
+      spatialPlaceDot(wrap, sx, sy, '#e63946');
+    }
+  });
+
+  if (allFound && !selected.find(s => !dots.find(d => Math.abs(s.r - d.r) <= 1 && Math.abs(s.c - d.c) <= 1))) {
+    setFeedback('All correct!', 'correct');
+    spatialState.level++;
+    document.getElementById('g-level').textContent = `Level ${spatialState.level}`;
+    setTimeout(() => spatialNextRound(), 1200);
+  } else if (allFound) {
+    // All targets hit but had extra wrong selections
+    setFeedback('Too many selections!', 'wrong');
+    setTimeout(() => gameOver(spatialState.level, `Level ${spatialState.level}`, 'Level reached'), 1600);
+  } else {
+    setFeedback('Missed some dots!', 'wrong');
     setTimeout(() => gameOver(spatialState.level, `Level ${spatialState.level}`, 'Level reached'), 1600);
   }
 }
 
-function spatialPlaceDot(wrap, CELL, x, y, color) {
+function spatialPlaceDot(wrap, x, y, color) {
   const dot = document.createElement('div');
   dot.style.cssText = `position:absolute;left:${x-10}px;top:${y-10}px;width:20px;height:20px;
     border-radius:50%;background:${color};pointer-events:none;z-index:10;`;
@@ -1431,4 +1480,3 @@ showScreen('menu');
 </script>
 </body>
 </html>
- 
