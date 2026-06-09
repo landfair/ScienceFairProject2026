@@ -1004,18 +1004,19 @@ function noteActiveKeys() {
   return NOTE_SEQUENCE.slice(0, noteState.level + 1);
 }
 
-function noteRenderStudy() {
+function noteRenderStudy(isProgression = false) {
   noteState.phase = 'study';
   const active = noteActiveKeys();
   setFeedback(`Listen to the notes, then click Ready.`, 'neutral');
   document.getElementById('g-stimulus').innerHTML = '';
 
   const actionArea = document.getElementById('g-action-area');
+  const readyLabel = isProgression ? 'Next Level →' : 'Ready →';
   actionArea.innerHTML = `<div class="piano-wrap">
     ${noteBuildPianoHTML(active, true)}
     <div class="piano-btns">
       <button class="btn btn-secondary" onclick="notePlayAll()">▶ Play All Notes</button>
-      <button class="btn btn-primary"   onclick="noteReady()">Ready →</button>
+      <button class="btn btn-primary"   onclick="noteReady()">${readyLabel}</button>
     </div>
   </div>`;
 }
@@ -1116,9 +1117,6 @@ function noteReady() {
   const actionArea = document.getElementById('g-action-area');
   actionArea.innerHTML = `<div class="piano-wrap">
     ${noteBuildPianoHTML(active, false)}
-    <div class="piano-btns">
-      <button class="btn btn-secondary" onclick="notePlayTarget()">▶ Play Again</button>
-    </div>
   </div>`;
 
   // Play the mystery note after a brief pause
@@ -1151,7 +1149,7 @@ function notePianoClick(noteName) {
       // Beat all levels!
       setTimeout(() => gameOver(noteState.level - 1, `Level ${noteState.level - 1}`, 'All notes mastered!'), 1200);
     } else {
-      setTimeout(() => noteRenderStudy(), 1200);
+      setTimeout(() => noteRenderStudy(true), 1200);
     }
   } else {
     if (clickedEl) clickedEl.classList.add('wrong-flash');
@@ -1434,7 +1432,7 @@ function spatialStartRecall() {
   spatialState.phase = 'recall';
   spatialState.selected = []; // {r, c} cells the player has toggled on
   const dotCount = spatialState.dots.length;
-  setFeedback(`Mark all ${dotCount} dot location${dotCount > 1 ? 's' : ''}, then press Enter.`, 'neutral');
+  setFeedback(`0 / ${dotCount} marked — press Enter when done.`, 'neutral');
   spatialRenderGrid(false);
   document.getElementById('g-action-area').innerHTML =
     `<button class="btn btn-primary" onclick="spatialSubmit()">Enter ✓</button>`;
@@ -1459,11 +1457,13 @@ function spatialGridClick(e) {
     // Toggle off
     spatialState.selected.splice(existingIdx, 1);
   } else {
-    // Toggle on
+    // Toggle on — cap at the required dot count
+    if (spatialState.selected.length >= spatialState.dots.length) return;
     spatialState.selected.push({ r: row, c: col });
   }
   spatialRedrawSelections();
-  setFeedback(`${spatialState.selected.length} marked — press Enter when done.`, 'neutral');
+  const dotCount = spatialState.dots.length;
+  setFeedback(`${spatialState.selected.length} / ${dotCount} marked — press Enter when done.`, 'neutral');
 }
 
 function spatialRedrawSelections() {
@@ -1509,7 +1509,18 @@ function spatialSubmit() {
     const dx = d.c * CELL + CELL / 2;
     const dy = d.r * CELL + CELL / 2;
     spatialPlaceDot(wrap, dx, dy, hit ? '#2dc653' : '#ffb703');
-    if (!hit) allFound = false;
+
+    if (hit) {
+      const exact = hit.r === d.r && hit.c === d.c;
+      if (!exact) {
+        // Draw a small arrow from true dot toward player's selection
+        const sx = hit.c * CELL + CELL / 2;
+        const sy = hit.r * CELL + CELL / 2;
+        spatialPlaceArrow(wrap, dx, dy, sx, sy);
+      }
+    } else {
+      allFound = false;
+    }
   });
 
   // Show wrong selections (selected cells that don't match any dot)
@@ -1523,7 +1534,11 @@ function spatialSubmit() {
   });
 
   if (allFound && !selected.find(s => !dots.find(d => Math.abs(s.r - d.r) <= 1 && Math.abs(s.c - d.c) <= 1))) {
-    setFeedback('All correct!', 'correct');
+    const closeCount = dots.filter(d => {
+      const hit = selected.find(s => Math.abs(s.r - d.r) <= 1 && Math.abs(s.c - d.c) <= 1);
+      return hit && !(hit.r === d.r && hit.c === d.c);
+    }).length;
+    setFeedback(closeCount > 0 ? `All found! (${closeCount} close call${closeCount > 1 ? 's' : ''})` : 'All correct!', 'correct');
     spatialState.level++;
     document.getElementById('g-level').textContent = `Level ${spatialState.level}`;
     setTimeout(() => spatialNextRound(), 1200);
@@ -1542,6 +1557,33 @@ function spatialPlaceDot(wrap, x, y, color) {
   dot.style.cssText = `position:absolute;left:${x-10}px;top:${y-10}px;width:20px;height:20px;
     border-radius:50%;background:${color};pointer-events:none;z-index:10;`;
   wrap.appendChild(dot);
+}
+
+function spatialPlaceArrow(wrap, fromX, fromY, toX, toY) {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  // Position the arrow starting from the true dot center
+  const el = document.createElement('div');
+  el.style.cssText = `position:absolute;
+    left:${fromX}px;top:${fromY - 2}px;
+    width:${len}px;height:4px;
+    background:rgba(255,183,3,0.9);
+    border-radius:2px;
+    transform-origin:0 50%;
+    transform:rotate(${angle}deg);
+    pointer-events:none;z-index:11;`;
+  wrap.appendChild(el);
+  // Arrowhead
+  const head = document.createElement('div');
+  head.style.cssText = `position:absolute;
+    left:${toX - 5}px;top:${toY - 5}px;
+    width:10px;height:10px;
+    background:rgba(255,183,3,0.9);
+    border-radius:50%;
+    pointer-events:none;z-index:12;`;
+  wrap.appendChild(head);
 }
 
 // ════════════════════════════════════════════════════
