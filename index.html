@@ -309,6 +309,67 @@
   .intro-card p { color: #495057; font-size: 0.9rem; line-height: 1.6; margin-bottom: 20px; }
   .intro-card .rules { text-align: left; background: #f8f9fa; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; font-size: 0.88rem; color: #495057; line-height: 1.8; }
 
+  /* ── Name modal ── */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    width: 90%; max-width: 360px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-box h3 { font-size: 1.2rem; font-weight: 800; margin-bottom: 6px; }
+  .modal-box p  { font-size: 0.88rem; color: #6c757d; margin-bottom: 16px; }
+  .modal-input {
+    width: 100%; padding: 10px 14px;
+    border: 2px solid #e9ecef; border-radius: 8px;
+    font-size: 1rem; outline: none; text-align: center;
+    transition: border-color 0.15s; margin-bottom: 14px;
+  }
+  .modal-input:focus { border-color: #4361ee; }
+  .modal-btns { display: flex; gap: 10px; justify-content: center; }
+
+  /* ── Per-game scoreboard cards ── */
+  .sb-game-card {
+    background: #fff;
+    border: 1.5px solid #e9ecef;
+    border-radius: 14px;
+    overflow: hidden;
+    width: 100%;
+  }
+  .sb-game-header {
+    padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #f1f3f9;
+  }
+  .sb-game-title { font-weight: 700; font-size: 1rem; }
+  .sb-avg { font-size: 0.82rem; color: #6c757d; }
+  .sb-leaderboard { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .sb-leaderboard td { padding: 7px 18px; border-bottom: 1px solid #f8f9fa; }
+  .sb-leaderboard tr:last-child td { border-bottom: none; }
+  .sb-rank { color: #6c757d; width: 28px; font-weight: 700; }
+  .sb-rank.gold   { color: #f9a825; }
+  .sb-rank.silver { color: #90a4ae; }
+  .sb-rank.bronze { color: #bf8a60; }
+  .sb-player { font-weight: 600; }
+  .sb-level  { text-align: right; color: #4361ee; font-weight: 700; }
+  .sb-chart-wrap { padding: 12px 18px 14px; border-top: 1px solid #f1f3f9; }
+  .sb-chart-label { font-size: 0.72rem; color: #adb5bd; margin-bottom: 6px; }
+  .sb-bars { display: flex; align-items: flex-end; gap: 3px; height: 48px; }
+  .sb-bar {
+    flex: 1; border-radius: 3px 3px 0 0;
+    background: #4361ee; opacity: 0.55;
+    min-width: 4px; transition: opacity 0.15s;
+  }
+  .sb-bar:hover { opacity: 1; }
+
   /* footer */
   footer { text-align: center; padding: 16px; font-size: 0.78rem; color: #adb5bd; }
 
@@ -480,10 +541,9 @@
     <!-- ══ SCOREBOARD ══ -->
     <div id="screen-scores" class="screen">
       <div style="width:100%;display:flex;align-items:center;justify-content:space-between;">
-        <h2 style="font-size:1.3rem;font-weight:800;">All Scores</h2>
-        <button class="btn btn-secondary" style="padding:8px 16px;font-size:0.82rem;" onclick="clearScores()">Clear</button>
+        <h2 style="font-size:1.3rem;font-weight:800;">Leaderboards</h2>
       </div>
-      <div id="scores-content" style="width:100%;background:#fff;border:1.5px solid #e9ecef;border-radius:16px;overflow:hidden;"></div>
+      <div id="scores-content" style="width:100%;display:flex;flex-direction:column;gap:16px;"></div>
       <button class="btn btn-secondary" onclick="goMenu()">← Back to Menu</button>
     </div>
   </main>
@@ -553,15 +613,17 @@ function saveScoreLocal(entry) {
 async function saveScore(entry) {
   saveScoreLocal(entry);
   try {
+    const row = {
+      game:      entry.game,
+      game_name: entry.gameName,
+      level:     entry.level,
+      score:     entry.score,
+    };
+    if (entry.player) row.player = entry.player;
     await sbFetch('/rest/v1/scores', {
       method: 'POST',
       headers: { 'Prefer': 'return=minimal' },
-      body: JSON.stringify({
-        game:      entry.game,
-        game_name: entry.gameName,
-        level:     entry.level,
-        score:     entry.score,
-      }),
+      body: JSON.stringify(row),
     });
   } catch (e) {
     console.warn('Supabase save failed:', e);
@@ -713,7 +775,7 @@ function initGameState() {
 // ══════════════════════════════════════════════
 //  GAME OVER
 // ══════════════════════════════════════════════
-function gameOver(level, scoreLine, label) {
+async function gameOver(level, scoreLine, label) {
   stopTimers();
   const scores = loadScores();
   const gameName = GAMES[currentGame].name;
@@ -725,9 +787,8 @@ function gameOver(level, scoreLine, label) {
     score: scoreLine,
     date: new Date().toLocaleDateString(),
   };
-  saveScore(entry);
 
-  // compare
+  // compare against local history
   const sameGame = scores.filter(s => s.game === currentGame);
   const best = sameGame.length > 0 ? Math.max(...sameGame.map(s => s.level)) : 0;
   let compareText = '';
@@ -743,7 +804,7 @@ function gameOver(level, scoreLine, label) {
   const allLevels = scores.map(s => s.level);
   if (allLevels.length > 1) {
     const avg = (allLevels.reduce((a,b)=>a+b,0)/allLevels.length).toFixed(1);
-    compareText += ` Your all-game average: Level ${avg}.`;
+    compareText += ` All-game average: Level ${avg}.`;
   }
 
   document.getElementById('go-title').textContent = `${GAMES[currentGame].icon} ${gameName}`;
@@ -751,6 +812,51 @@ function gameOver(level, scoreLine, label) {
   document.getElementById('go-label').textContent = label || 'Level reached';
   document.getElementById('go-compare').textContent = compareText;
   showScreen('gameover');
+
+  // Check if this score qualifies for top 5 — if so, prompt for name
+  try {
+    const top5 = await sbFetch(
+      `/rest/v1/scores?select=level&game=eq.${currentGame}&order=level.desc&limit=5`
+    );
+    const qualifies = top5.length < 5 || level > top5[top5.length - 1].level;
+    if (qualifies) {
+      const playerName = await promptPlayerName();
+      entry.player = playerName || null;
+    }
+  } catch (e) {
+    // Supabase unavailable — save without name
+  }
+
+  saveScore(entry);
+}
+
+function promptPlayerName() {
+  return new Promise(resolve => {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal-box">
+        <h3>🏆 Top 5!</h3>
+        <p>You made the leaderboard for this game. Enter your name to claim your spot.</p>
+        <input class="modal-input" id="modal-name-input" type="text" maxlength="20" placeholder="Your name" autocomplete="off"/>
+        <div class="modal-btns">
+          <button class="btn btn-secondary" id="modal-skip">Skip</button>
+          <button class="btn btn-primary"   id="modal-save">Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const input = backdrop.querySelector('#modal-name-input');
+    input.focus();
+
+    const finish = (name) => {
+      backdrop.remove();
+      resolve(name);
+    };
+    backdrop.querySelector('#modal-save').onclick = () => finish(input.value.trim() || null);
+    backdrop.querySelector('#modal-skip').onclick = () => finish(null);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') finish(input.value.trim() || null); });
+  });
 }
 
 // ══════════════════════════════════════════════
@@ -762,61 +868,64 @@ async function renderScoreboard() {
 
   let scores = [];
   try {
-    const rows = await sbFetch('/rest/v1/scores?select=game,game_name,level,score,created_at&order=created_at.asc');
+    const rows = await sbFetch('/rest/v1/scores?select=game,game_name,level,player,created_at&order=created_at.asc');
     scores = rows.map(r => ({
-      game:     r.game,
-      gameName: r.game_name,
-      level:    Number(r.level),
-      score:    r.score,
-      date:     r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
+      game:   r.game,
+      level:  Number(r.level),
+      player: r.player || null,
+      date:   r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
     }));
   } catch (e) {
     console.warn('Supabase load failed, falling back to localStorage:', e);
     scores = loadScores();
   }
 
-  if (scores.length === 0) {
-    container.innerHTML = '<div class="no-scores">No scores yet. Play a game!</div>';
+  const gameIds = ['note', 'digit', 'spatial', 'rowan', 'plusone'];
+  const played = gameIds.filter(gid => scores.some(s => s.game === gid));
+
+  if (played.length === 0) {
+    container.innerHTML = '<div class="no-scores" style="padding:32px;text-align:center;color:#6c757d;">No scores yet. Play a game!</div>';
     return;
   }
 
-  // Most recent score entry
-  const latest = scores[scores.length - 1];
+  const rankLabels = ['gold', 'silver', 'bronze', '', ''];
+  const rankSymbols = ['🥇', '🥈', '🥉', '4', '5'];
 
-  // Per-game stats
-  const gameIds = ['note', 'digit', 'spatial', 'rowan', 'plusone'];
-  let html = `<table class="score-table"><thead><tr>
-    <th>Game</th><th>Avg Level</th><th>Plays</th><th>Last</th>
-  </tr></thead><tbody>`;
-
-  gameIds.forEach(gid => {
+  container.innerHTML = played.map(gid => {
     const group = scores.filter(s => s.game === gid);
-    if (group.length === 0) return;
     const avg = (group.reduce((a, s) => a + s.level, 0) / group.length).toFixed(1);
-    const last = group[group.length - 1].level;
-    const isLatest = latest.game === gid;
-    const diff = last - parseFloat(avg);
-    const diffStr = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
-    const diffColor = diff > 0 ? '#2dc653' : diff < 0 ? '#e63946' : '#6c757d';
-    html += `<tr ${isLatest ? 'class="highlight"' : ''}>
-      <td>${GAMES[gid].icon} ${GAMES[gid].name}</td>
-      <td>${avg}</td>
-      <td>${group.length}</td>
-      <td>${last} <span style="font-size:0.78rem;color:${diffColor};font-weight:700;">(${diffStr})</span></td>
-    </tr>`;
-  });
 
-  html += '</tbody></table>';
+    // Top 5 by level (desc), then by date (earlier = better tiebreak)
+    const top5 = [...group].sort((a, b) => b.level - a.level).slice(0, 5);
 
-  // Summary line
-  const latestGame = GAMES[latest.game];
-  const latestGroup = scores.filter(s => s.game === latest.game);
-  const latestAvg = (latestGroup.reduce((a, s) => a + s.level, 0) / latestGroup.length).toFixed(1);
-  const diff = latest.level - parseFloat(latestAvg);
-  const diffStr = diff > 0 ? `${diff.toFixed(1)} above` : diff < 0 ? `${Math.abs(diff).toFixed(1)} below` : 'exactly at';
-  const summary = `Most recent: ${latestGame.icon} ${latestGame.name}, Level ${latest.level} — ${diffStr} the average (${latestAvg}).`;
+    // All levels for chart (chronological)
+    const allLevels = group.map(s => s.level);
+    const maxLevel = Math.max(...allLevels, 1);
 
-  container.innerHTML = html + `<div style="padding:12px 16px;font-size:0.83rem;color:#495057;border-top:1px solid #f1f3f9;">${summary}</div>`;
+    const leaderboardRows = top5.map((s, i) => `
+      <tr>
+        <td class="sb-rank ${rankLabels[i]}">${rankSymbols[i]}</td>
+        <td class="sb-player">${s.player || '<span style="color:#adb5bd;font-style:italic;">—</span>'}</td>
+        <td class="sb-level">Level ${s.level}</td>
+      </tr>`).join('');
+
+    const bars = allLevels.map(l => {
+      const pct = Math.round((l / maxLevel) * 100);
+      return `<div class="sb-bar" style="height:${pct}%" title="Level ${l}"></div>`;
+    }).join('');
+
+    return `<div class="sb-game-card">
+      <div class="sb-game-header">
+        <span class="sb-game-title">${GAMES[gid].icon} ${GAMES[gid].name}</span>
+        <span class="sb-avg">Avg: ${avg} · ${group.length} play${group.length !== 1 ? 's' : ''}</span>
+      </div>
+      <table class="sb-leaderboard"><tbody>${leaderboardRows}</tbody></table>
+      <div class="sb-chart-wrap">
+        <div class="sb-chart-label">All scores</div>
+        <div class="sb-bars">${bars}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ════════════════════════════════════════════════════
