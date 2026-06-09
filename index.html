@@ -1612,17 +1612,16 @@ function spatialSubmit() {
     const hit = selected.find(s => Math.abs(s.r - d.r) <= 1 && Math.abs(s.c - d.c) <= 1);
     const dx = d.c * CELL + CELL / 2;
     const dy = d.r * CELL + CELL / 2;
-    spatialPlaceDot(wrap, dx, dy, hit ? '#2dc653' : '#ffb703');
 
     if (hit) {
       const exact = hit.r === d.r && hit.c === d.c;
-      if (!exact) {
-        // Draw a small arrow from true dot toward player's selection
-        const sx = hit.c * CELL + CELL / 2;
-        const sy = hit.r * CELL + CELL / 2;
-        spatialPlaceArrow(wrap, dx, dy, sx, sy);
+      if (exact) {
+        spatialPlaceDot(wrap, dx, dy, 'solid');
+      } else {
+        spatialPlaceDot(wrap, dx, dy, 'close');
       }
     } else {
+      spatialPlaceDot(wrap, dx, dy, 'missed');
       allFound = false;
     }
   });
@@ -1633,7 +1632,7 @@ function spatialSubmit() {
     if (!near) {
       const sx = s.c * CELL + CELL / 2;
       const sy = s.r * CELL + CELL / 2;
-      spatialPlaceDot(wrap, sx, sy, '#e63946');
+      spatialPlaceDot(wrap, sx, sy, 'wrong');
     }
   });
 
@@ -1656,38 +1655,28 @@ function spatialSubmit() {
   }
 }
 
-function spatialPlaceDot(wrap, x, y, color) {
-  const dot = document.createElement('div');
-  dot.style.cssText = `position:absolute;left:${x-10}px;top:${y-10}px;width:20px;height:20px;
-    border-radius:50%;background:${color};pointer-events:none;z-index:10;`;
-  wrap.appendChild(dot);
-}
-
-function spatialPlaceArrow(wrap, fromX, fromY, toX, toY) {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-  const len = Math.sqrt(dx*dx + dy*dy);
-  // Position the arrow starting from the true dot center
+function spatialPlaceDot(wrap, x, y, type) {
   const el = document.createElement('div');
-  el.style.cssText = `position:absolute;
-    left:${fromX}px;top:${fromY - 2}px;
-    width:${len}px;height:4px;
-    background:rgba(255,183,3,0.9);
-    border-radius:2px;
-    transform-origin:0 50%;
-    transform:rotate(${angle}deg);
-    pointer-events:none;z-index:11;`;
+  el.style.cssText = `position:absolute;left:${x-11}px;top:${y-11}px;width:22px;height:22px;pointer-events:none;z-index:10;`;
+
+  if (type === 'solid') {
+    // Exact hit: solid green filled circle
+    el.style.cssText += `border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--paper-2);`;
+  } else if (type === 'close') {
+    // Close hit: green ring with small dot in centre
+    el.style.cssText += `border-radius:50%;background:transparent;border:3px solid var(--green);box-shadow:0 0 0 2px var(--paper-2);`;
+    const inner = document.createElement('div');
+    inner.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:7px;height:7px;border-radius:50%;background:var(--green);`;
+    el.appendChild(inner);
+  } else if (type === 'missed') {
+    // Missed target: orange filled circle
+    el.style.cssText += `border-radius:50%;background:var(--gold);box-shadow:0 0 0 2px var(--paper-2);`;
+  } else if (type === 'wrong') {
+    // Wrong selection: red filled circle
+    el.style.cssText += `border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--paper-2);`;
+  }
+
   wrap.appendChild(el);
-  // Arrowhead
-  const head = document.createElement('div');
-  head.style.cssText = `position:absolute;
-    left:${toX - 5}px;top:${toY - 5}px;
-    width:10px;height:10px;
-    background:rgba(255,183,3,0.9);
-    border-radius:50%;
-    pointer-events:none;z-index:12;`;
-  wrap.appendChild(head);
 }
 
 // ════════════════════════════════════════════════════
