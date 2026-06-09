@@ -520,15 +520,52 @@ const ICONS = {
 const ICON_KEYS = Object.keys(ICONS);
 
 // ══════════════════════════════════════════════
+//  SUPABASE CONFIG
+// ══════════════════════════════════════════════
+const SB_URL = 'https://nkdqxhhtwzayvqpqahhs.supabase.co';
+const SB_KEY = 'sb_publishable_BnJTNPfGEABgQtju8B5Ebw_Dw-c6dEL';
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(SB_URL + path, {
+    ...options,
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.status === 204 ? null : res.json();
+}
+
+// ══════════════════════════════════════════════
 //  SCORE STORAGE
 // ══════════════════════════════════════════════
 function loadScores() {
   try { return JSON.parse(localStorage.getItem('magic7_scores') || '[]'); } catch { return []; }
 }
-function saveScore(entry) {
+function saveScoreLocal(entry) {
   const scores = loadScores();
   scores.push(entry);
   localStorage.setItem('magic7_scores', JSON.stringify(scores));
+}
+async function saveScore(entry) {
+  saveScoreLocal(entry);
+  try {
+    await sbFetch('/rest/v1/scores', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        game:      entry.game,
+        game_name: entry.gameName,
+        level:     entry.level,
+        score:     entry.score,
+      }),
+    });
+  } catch (e) {
+    console.warn('Supabase save failed:', e);
+  }
 }
 function clearScores() {
   if (confirm('Clear all scores?')) {
@@ -719,9 +756,25 @@ function gameOver(level, scoreLine, label) {
 // ══════════════════════════════════════════════
 //  SCOREBOARD RENDER
 // ══════════════════════════════════════════════
-function renderScoreboard() {
-  const scores = loadScores();
+async function renderScoreboard() {
   const container = document.getElementById('scores-content');
+  container.innerHTML = '<div class="no-scores">Loading…</div>';
+
+  let scores = [];
+  try {
+    const rows = await sbFetch('/rest/v1/scores?select=game,game_name,level,score,created_at&order=created_at.asc');
+    scores = rows.map(r => ({
+      game:     r.game,
+      gameName: r.game_name,
+      level:    Number(r.level),
+      score:    r.score,
+      date:     r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
+    }));
+  } catch (e) {
+    console.warn('Supabase load failed, falling back to localStorage:', e);
+    scores = loadScores();
+  }
+
   if (scores.length === 0) {
     container.innerHTML = '<div class="no-scores">No scores yet. Play a game!</div>';
     return;
@@ -733,7 +786,7 @@ function renderScoreboard() {
   // Per-game stats
   const gameIds = ['note', 'digit', 'spatial', 'rowan', 'plusone'];
   let html = `<table class="score-table"><thead><tr>
-    <th>Game</th><th>Avg Level</th><th>Plays</th><th>Your Last</th>
+    <th>Game</th><th>Avg Level</th><th>Plays</th><th>Last</th>
   </tr></thead><tbody>`;
 
   gameIds.forEach(gid => {
