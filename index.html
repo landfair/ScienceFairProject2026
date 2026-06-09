@@ -68,6 +68,24 @@
   .scores-card .card-name { color: #4361ee; }
   .scores-card .card-icon { opacity: 0.85; }
 
+  .rowan-card {
+    border-color: #f9a825 !important;
+    background: #fffdf0 !important;
+    box-shadow: 0 0 0 1px #f9a82533;
+  }
+  .rowan-card:hover { border-color: #f9a825 !important; box-shadow: 0 4px 20px rgba(249,168,37,0.18) !important; }
+  .rowan-badge {
+    margin-top: 10px;
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #b7791f;
+    background: #fef3c7;
+    border-radius: 20px;
+    padding: 3px 10px;
+    letter-spacing: 0.03em;
+  }
+
   /* ── Buttons ── */
   .btn {
     padding: 12px 28px;
@@ -462,7 +480,7 @@
     <!-- ══ MENU ══ -->
     <div id="screen-menu" class="screen active">
       <div class="menu-title" style="white-space:nowrap;">The Rule of Seven <em>(plus or minus two)</em></div>
-      <p class="menu-sub">Five games exploring the limits of human working memory.</p>
+      <p class="menu-sub">Five games exploring the limits of human working memory. Versions of these appear in Miller's 1956 paper — except one.</p>
       <div class="game-cards">
         <div class="game-card" onclick="startGame('note')">
           <div class="card-icon">🎵</div>
@@ -479,10 +497,11 @@
           <div class="card-name">Spatial Grid</div>
           <div class="card-desc">Study dot locations on a 10×10 grid, then click where they were.</div>
         </div>
-        <div class="game-card" onclick="startGame('rowan')">
+        <div class="game-card rowan-card" onclick="startGame('rowan')">
           <div class="card-icon">🔷</div>
           <div class="card-name">Shape Recall</div>
           <div class="card-desc">Study a set of icons, then find the one that was in the set.</div>
+          <div class="rowan-badge">✦ Rowan's original</div>
         </div>
         <div class="game-card" onclick="startGame('plusone')">
           <div class="card-icon">➕</div>
