@@ -1109,6 +1109,7 @@ async function renderScoreboard() {
     return;
   }
 
+  const todayStr = new Date().toLocaleDateString();
   const rankLabels = ['gold', 'silver', 'bronze', '', ''];
   const rankSymbols = ['🥇', '🥈', '🥉', '4', '5'];
 
@@ -1116,20 +1117,22 @@ async function renderScoreboard() {
     const group = scores.filter(s => s.game === gid);
     const avg = (group.reduce((a, s) => a + s.level, 0) / group.length).toFixed(1);
 
-    // Top 5 by level (desc), then by date (earlier = better tiebreak)
-    const top5 = [...group].sort((a, b) => b.level - a.level).slice(0, 5);
+    // Leaderboard: today's scores only
+    const todayGroup = group.filter(s => s.date === todayStr);
+    const top5 = [...todayGroup].sort((a, b) => b.level - a.level).slice(0, 5);
 
-    // All levels for chart
+    // All levels for chart (all-time)
     const allLevels = group.map(s => s.level);
     const maxLevel = Math.max(...allLevels, 1);
-    const total = allLevels.length;
 
-    const leaderboardRows = top5.map((s, i) => `
-      <tr>
-        <td class="sb-rank ${rankLabels[i]}">${rankSymbols[i]}</td>
-        <td class="sb-player">${s.player || '<span style="color:#adb5bd;font-style:italic;">—</span>'}</td>
-        <td class="sb-level">Level ${s.level}</td>
-      </tr>`).join('');
+    const leaderboardRows = top5.length > 0
+      ? top5.map((s, i) => `
+          <tr>
+            <td class="sb-rank ${rankLabels[i]}">${rankSymbols[i]}</td>
+            <td class="sb-player">${s.player || '<span style="color:#adb5bd;font-style:italic;">—</span>'}</td>
+            <td class="sb-level">Level ${s.level}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="3" style="padding:10px 18px;color:var(--ink-soft);font-style:italic;font-size:0.82rem;">No plays today yet</td></tr>`;
 
     // Build completion curve: for each level 1..maxLevel, % of plays that reached >= that level
     const chartSvg = buildCompletionChart(allLevels, maxLevel);
@@ -1137,11 +1140,11 @@ async function renderScoreboard() {
     return `<div class="sb-game-card">
       <div class="sb-game-header">
         <span class="sb-game-title">${GAMES[gid].icon} ${GAMES[gid].name}</span>
-        <span class="sb-avg">Avg: ${avg} · ${group.length} play${group.length !== 1 ? 's' : ''}</span>
+        <span class="sb-avg">Today's top 5</span>
       </div>
       <table class="sb-leaderboard"><tbody>${leaderboardRows}</tbody></table>
       <div class="sb-chart-wrap">
-        <div class="sb-chart-label">Level completion rate</div>
+        <div class="sb-chart-label">All-time completion rate · avg ${avg} · ${group.length} play${group.length !== 1 ? 's' : ''}</div>
         ${chartSvg}
       </div>
     </div>`;
