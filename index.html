@@ -429,15 +429,14 @@
   .sb-rank.bronze { color: #8a6040; }
   .sb-player { font-weight: 600; }
   .sb-level  { text-align: right; color: var(--ink); font-weight: 700; font-family: "Fraunces", serif; }
-  .sb-chart-wrap { padding: 12px 18px 14px; border-top: 1.5px solid var(--line); background: var(--paper); }
-  .sb-chart-label { font-size: 0.72rem; color: var(--ink-soft); margin-bottom: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
-  .sb-bars { display: flex; align-items: flex-end; gap: 3px; height: 48px; }
-  .sb-bar {
-    flex: 1; border-radius: 3px 3px 0 0;
-    background: var(--ink); opacity: 0.3;
-    min-width: 4px; transition: opacity 0.15s;
-  }
-  .sb-bar:hover { opacity: 0.75; }
+  .sb-chart-wrap { padding: 14px 18px 16px; border-top: 1.5px solid var(--line); background: var(--paper); }
+  .sb-chart-label { font-size: 0.72rem; color: var(--ink-soft); margin-bottom: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .sb-chart-svg { display: block; width: 100%; overflow: visible; }
+  .sb-chart-axis { font-size: 10px; fill: var(--ink-soft); font-family: "Bricolage Grotesque", sans-serif; }
+  .sb-chart-grid { stroke: var(--line); stroke-width: 1; }
+  .sb-chart-line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .sb-chart-dot { fill: var(--paper-2); stroke: var(--ink); stroke-width: 2; }
+  .sb-chart-area { opacity: 0.08; }
 
   /* footer */
   footer { text-align: center; padding: 16px; font-size: 0.78rem; color: var(--ink-soft); }
@@ -997,6 +996,91 @@ function promptPlayerName() {
 }
 
 // ══════════════════════════════════════════════
+//  COMPLETION CHART
+// ══════════════════════════════════════════════
+function buildCompletionChart(allLevels, maxLevel) {
+  const total = allLevels.length;
+  // For each level 1..maxLevel, % of plays that reached >= that level
+  const points = [];
+  for (let lvl = 1; lvl <= maxLevel; lvl++) {
+    const count = allLevels.filter(l => l >= lvl).length;
+    points.push({ lvl, pct: Math.round((count / total) * 100) });
+  }
+
+  // SVG dimensions (viewBox units)
+  const W = 400, H = 110;
+  const padL = 34, padR = 12, padT = 10, padB = 26;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  // Scales
+  const xOf = lvl => padL + ((lvl - 1) / Math.max(maxLevel - 1, 1)) * chartW;
+  const yOf = pct => padT + (1 - pct / 100) * chartH;
+
+  // Y grid lines at 0, 25, 50, 75, 100
+  const yGridLines = [0, 25, 50, 75, 100].map(pct => {
+    const y = yOf(pct);
+    return `<line class="sb-chart-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"/>
+            <text class="sb-chart-axis" x="${padL - 4}" y="${y + 3.5}" text-anchor="end">${pct}%</text>`;
+  }).join('');
+
+  // X axis labels — show level numbers, thinned if many levels
+  const step = maxLevel <= 8 ? 1 : maxLevel <= 16 ? 2 : Math.ceil(maxLevel / 8);
+  const xLabels = points
+    .filter(p => p.lvl === 1 || p.lvl === maxLevel || (p.lvl - 1) % step === 0)
+    .map(p => `<text class="sb-chart-axis" x="${xOf(p.lvl)}" y="${H - padB + 14}" text-anchor="middle">${p.lvl}</text>`)
+    .join('');
+
+  // Polyline path
+  const coords = points.map(p => `${xOf(p.lvl)},${yOf(p.pct)}`).join(' ');
+
+  // Filled area under the line
+  const firstX = xOf(points[0].lvl), lastX = xOf(points[points.length - 1].lvl);
+  const baseY = padT + chartH;
+  const areaPoints = `${firstX},${baseY} ${coords} ${lastX},${baseY}`;
+
+  // Find steepest drop: segment with largest pct decrease
+  let cliffLvl = null;
+  if (points.length >= 2) {
+    let maxDrop = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const drop = points[i].pct - points[i + 1].pct;
+      if (drop > maxDrop) { maxDrop = drop; cliffLvl = points[i].lvl; }
+    }
+  }
+
+  // Dots — cliff level gets a crosshair marker
+  const dots = points.map(p => {
+    const cx = xOf(p.lvl), cy = yOf(p.pct);
+    const tip = `<title>Level ${p.lvl}: ${p.pct}%</title>`;
+    if (p.lvl === cliffLvl) {
+      const r = 6;
+      return `<line x1="${cx-r}" y1="${cy}" x2="${cx+r}" y2="${cy}" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/>
+              <line x1="${cx}" y1="${cy-r}" x2="${cx}" y2="${cy+r}" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="${cx}" cy="${cy}" r="3.5" fill="var(--paper-2)" stroke="var(--red)" stroke-width="1.8">${tip}</circle>`;
+    }
+    return `<circle class="sb-chart-dot" cx="${cx}" cy="${cy}" r="3">${tip}</circle>`;
+  }).join('');
+
+  // Axis lines
+  const axisLine = `<line stroke="var(--ink)" stroke-width="1.5" x1="${padL}" y1="${padT + chartH}" x2="${W - padR}" y2="${padT + chartH}"/>
+                    <line stroke="var(--ink)" stroke-width="1.5" x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}"/>`;
+
+  // X axis label
+  const xAxisLabel = `<text class="sb-chart-axis" x="${padL + chartW / 2}" y="${H}" text-anchor="middle" style="letter-spacing:.04em">LEVEL</text>`;
+
+  return `<svg class="sb-chart-svg" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+    ${yGridLines}
+    ${axisLine}
+    <polygon fill="var(--ink)" opacity="0.07" points="${areaPoints}"/>
+    <polyline class="sb-chart-line" points="${coords}"/>
+    ${dots}
+    ${xLabels}
+    ${xAxisLabel}
+  </svg>`;
+}
+
+// ══════════════════════════════════════════════
 //  SCOREBOARD RENDER
 // ══════════════════════════════════════════════
 async function renderScoreboard() {
@@ -1017,7 +1101,7 @@ async function renderScoreboard() {
     scores = loadScores();
   }
 
-  const gameIds = ['note', 'digit', 'spatial', 'rowan', 'plusone'];
+  const gameIds = ['rowan', 'note', 'digit', 'spatial', 'plusone'];
   const played = gameIds.filter(gid => scores.some(s => s.game === gid));
 
   if (played.length === 0) {
@@ -1035,9 +1119,10 @@ async function renderScoreboard() {
     // Top 5 by level (desc), then by date (earlier = better tiebreak)
     const top5 = [...group].sort((a, b) => b.level - a.level).slice(0, 5);
 
-    // All levels for chart (chronological)
+    // All levels for chart
     const allLevels = group.map(s => s.level);
     const maxLevel = Math.max(...allLevels, 1);
+    const total = allLevels.length;
 
     const leaderboardRows = top5.map((s, i) => `
       <tr>
@@ -1046,10 +1131,8 @@ async function renderScoreboard() {
         <td class="sb-level">Level ${s.level}</td>
       </tr>`).join('');
 
-    const bars = allLevels.map(l => {
-      const pct = Math.round((l / maxLevel) * 100);
-      return `<div class="sb-bar" style="height:${pct}%" title="Level ${l}"></div>`;
-    }).join('');
+    // Build completion curve: for each level 1..maxLevel, % of plays that reached >= that level
+    const chartSvg = buildCompletionChart(allLevels, maxLevel);
 
     return `<div class="sb-game-card">
       <div class="sb-game-header">
@@ -1058,8 +1141,8 @@ async function renderScoreboard() {
       </div>
       <table class="sb-leaderboard"><tbody>${leaderboardRows}</tbody></table>
       <div class="sb-chart-wrap">
-        <div class="sb-chart-label">All scores</div>
-        <div class="sb-bars">${bars}</div>
+        <div class="sb-chart-label">Level completion rate</div>
+        ${chartSvg}
       </div>
     </div>`;
   }).join('');
